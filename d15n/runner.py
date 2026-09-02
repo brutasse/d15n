@@ -21,9 +21,9 @@ from d15n.registry import name_of, registry
 fault = None
 
 
-def run_step(ctx, func, args, kwargs):
+def run_step(ctx, func, args, kwargs, d15n_id=None):
     name = name_of(func)
-    step_id = ctx.next_id()
+    step_id = ctx.next_id(d15n_id)
     stored = ctx.outcomes.get(step_id)
     if stored is not None:
         if stored["name"] != name:

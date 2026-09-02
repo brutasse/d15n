@@ -32,10 +32,11 @@ def step(func):
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        d15n_id = kwargs.pop("d15n_id", None)
         ctx = context.current()
         if ctx is None:
             return func(*args, **kwargs)
-        return run_step(ctx, func, args, kwargs)
+        return run_step(ctx, func, args, kwargs, d15n_id)
 
     wrapper.__d15n__ = _STEP
     return registry.register_step(wrapper)
@@ -89,12 +90,15 @@ def _run_branch(ctx, fork_id, index, branch):
         context.clear_current()
 
 
-def parallel(*branches):
+def parallel(*branches, d15n_id=None):
     """Run zero-arg callables concurrently; return their results in order.
 
     Each branch is a single step (a @step function or a lambda calling one).
     If any branch raises, the first error is re-raised (single branch) or an
     ExceptionGroup is raised (several branches).
+
+    Pass d15n_id="..." to give the fork a stable name, so the branch step
+    ids ("name.0.1", "name.1.1") do not shift when steps before it change.
     """
     if not branches:
         raise ValueError("parallel() requires at least one branch")
@@ -106,7 +110,7 @@ def parallel(*branches):
         context.set_current(ctx)
         owns_ctx = True
     try:
-        fork_id = ctx.next_id()
+        fork_id = ctx.next_id(d15n_id)
         with ThreadPoolExecutor(
             max_workers=len(branches), thread_name_prefix="d15n-parallel"
         ) as pool:

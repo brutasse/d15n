@@ -1,4 +1,4 @@
-# D15n - Durable execution
+# D15n - Durable workflow execution for Django
 
 This library provides a syntax and execution environment for durable workflows
 and effecting actions to external systems while maintaining database
@@ -19,9 +19,6 @@ High-level workflow properties:
   other database changes that led to it being scheduled.
 
 - Results from previous steps available for consumption in the next steps.
-
-- Try/rescue semantics to allow cleanup of database before marking a workflow
-  as completed.
 
 ## Usage
 
@@ -85,6 +82,39 @@ def provision_vm(args):
 branch raises, the single error is re-raised (one failing branch) or an
 `ExceptionGroup` is raised (several).
 
+### Naming steps
+
+By default a step is identified by its position in the body (a dotpath like
+`3`, or `3.1.2` within a `parallel`). Positions shift when steps are added or
+removed, which breaks replay of in-flight workflows on changed code. To keep
+a step's identity stable, pass `d15n_id="..."` at the call site:
+
+```python
+@workflow
+def provision_vm(args):
+    vm_id = create_vm(args["name"], args["size"], d15n_id="create-vm")
+    ip, _sg = parallel(
+        lambda: attach_ip(vm_id, d15n_id="attach-ip"),
+        lambda: setup_security_group(vm_id, args["name"], d15n_id="setup-sg"),
+        d15n_id="fanout",
+    )
+    return ip
+```
+
+- The name becomes the step's dotpath segment (`create-vm`,
+  `fanout.0.attach-ip`). Unnamed steps still take the next position, so
+  naming existing steps shifts no other ids and a named step's id never
+  depends on position.
+- `d15n_id` must be unique per scope — one body, or one parallel branch —
+  and a step's name and a `parallel` fork's name share the scope. Reusing a
+  name raises `D15nError` before the step runs. The same name is fine in
+  different branches.
+- Names may be dynamic (`d15n_id=f"iter-{i}"` inside a loop).
+- Renaming a step gives it a new identity: the old record is orphaned and
+  the step re-executes on the next claim.
+- A name must be a non-empty string without dots or whitespace, not purely
+  numeric, and the full id must fit in 300 characters.
+
 ### Scheduling
 
 ```python
@@ -124,9 +154,57 @@ longer than the longest single step.
   resumes at the first unrecorded step. Code between step calls therefore
   re-runs on every resume and must be deterministic; the engine records each
   step's qualified name and fails the workflow loudly if the body diverges.
+  A step's identity is its dotpath: its position for unnamed calls, or its
+  `d15n_id` name (see Naming steps).
 - Steps are at-least-once: if a worker dies after a step's side effect but
   before its record is written, the step re-runs on recovery. Make side
   effects idempotent or keyed. Retries and backoff are your responsibility.
+
+### Idempotent or keyed side effects
+
+A step that re-runs after a crash performs its side effect twice. There are
+two ways to make that harmless:
+
+- Idempotent: the effect is safe to repeat, so the second execution leaves
+  the system in the same state as the first.
+
+  ```python
+  @step
+  def tag_vm(vm_id):
+      cloud_api.set_tags(vm_id, {"team": "data"})  # re-run writes the same tags
+  ```
+
+  Setting a value, deleting something (the `delete_vm` cleanup above), or
+  converging SQL (`INSERT ... ON CONFLICT DO UPDATE`,
+  `CREATE INDEX IF NOT EXISTS`) are idempotent: run the line once or twice,
+  the end state is the same.
+
+- Keyed: the effect is not safe to repeat, so it is sent with a stable key
+  that the receiving system uses to recognize and suppress the duplicate.
+
+  ```python
+  @step
+  def charge_order(order_id, amount):
+      return billing_api.charge(
+          order_id, amount, idempotency_key=f"charge:{order_id}"
+      )
+  ```
+
+  If the worker dies after the charge is settled but before the step is
+  recorded, recovery re-runs the step with the same key and the billing API
+  returns the original charge instead of charging again. The same pattern
+  covers HTTP `Idempotency-Key` headers, uniquely named resources, or
+  `INSERT ... ON CONFLICT DO NOTHING` on a unique column.
+
+The key must be identical on every replay of the same step. Derive it from
+the workflow's arguments when the key names a logical operation (one charge
+per order), or from the run id when it names a single attempt
+(`d15n.context.current().workflow_id`). Timestamps and `uuid4()` do not
+work: a re-run computes a new key, and the duplicate passes.
+
+A plain `cloud_api.create_vm(name, size)`, an unkeyed charge, or an unkeyed
+e-mail are neither idempotent nor keyed: each re-run provisions another VM,
+charges the order again, or sends the e-mail again.
 
 ## Development
 
