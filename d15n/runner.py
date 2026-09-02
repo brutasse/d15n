@@ -59,6 +59,8 @@ def run_step(ctx, func, args, kwargs, d15n_id=None):
     if ctx.persistent:
         if fault is not None:
             fault(ctx, step_id)
+        status = Step.Status.FAILED if error is not None else Step.Status.DONE
+        error_payload = serde.encode_exception(error) if error is not None else None
         with transaction.atomic():
             Step.objects.create(
                 workflow_id=ctx.workflow_id,
@@ -66,10 +68,19 @@ def run_step(ctx, func, args, kwargs, d15n_id=None):
                 name=name,
                 args=list(args),
                 kwargs=kwargs,
-                status=Step.Status.FAILED if error is not None else Step.Status.DONE,
+                status=status,
                 result=result,
-                error=serde.encode_exception(error) if error is not None else None,
+                error=error_payload,
             )
+        # Keep the shared outcome store current, so a later step can read
+        # this step's outcome via context.current().outcomes. On a replay the
+        # outcome is already present from the claim-time snapshot.
+        ctx.outcomes[step_id] = {
+            "name": name,
+            "status": status,
+            "result": result,
+            "error": error_payload,
+        }
         _refresh_lease(ctx.workflow_id)
 
     if error is not None:

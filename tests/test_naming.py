@@ -1,6 +1,6 @@
 import pytest
 
-from d15n import parallel, runner
+from d15n import context, parallel, runner
 from d15n import schedule, step, workflow
 from d15n.errors import SimulatedCrash
 from d15n.models import Step, Workflow
@@ -237,6 +237,61 @@ def test_named_step_crash_and_resume():
     assert wf.result == "12k!"
     assert CALLS == ["s_one", "s_two", "s_two", "s_three"]
     assert Step.objects.filter(workflow_id=wf.id).count() == 3
+
+
+@step
+def source():
+    CALLS.append("source")
+    return "S"
+
+
+@step
+def read_named(which):
+    CALLS.append("read_named")
+    return f"{which}={context.current().outcomes[which]['result']}"
+
+
+@workflow
+def reads_previous(args):
+    source(d15n_id="source")
+    return read_named("source")
+
+
+def test_step_reads_previous_result_fresh():
+    wf = run_to_completion(reads_previous, {})
+    assert wf.status == Workflow.Status.COMPLETED
+    assert wf.result == "source=S"
+    assert CALLS == ["source", "read_named"]
+    assert {s.step_id for s in Step.objects.filter(workflow_id=wf.id)} == {
+        "source",
+        "2",
+    }
+
+
+def test_step_reads_previous_result_on_replay():
+    wf = schedule(reads_previous, {})
+    claim_next()
+
+    runner.fault = crash_on("2")
+    with pytest.raises(SimulatedCrash):
+        execute(wf.id)
+    runner.fault = None
+
+    # read_named's side effect ran but its record did not land.
+    assert CALLS == ["source", "read_named"]
+    assert set(
+        Step.objects.filter(workflow_id=wf.id).values_list("step_id", flat=True)
+    ) == {"source"}
+
+    re_claim(wf)
+    execute(wf.id)
+    wf.refresh_from_db()
+
+    assert wf.status == Workflow.Status.COMPLETED
+    assert wf.result == "source=S"
+    # "source" served from the store (not re-run); read_named re-ran and
+    # re-read the stored result.
+    assert CALLS == ["source", "read_named", "read_named"]
 
 
 SLOT = {"fn": "a"}

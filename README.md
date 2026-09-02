@@ -18,7 +18,9 @@ High-level workflow properties:
 - Transactional scheduling: workflows are meant to be scheduled along with the
   other database changes that led to it being scheduled.
 
-- Results from previous steps available for consumption in the next steps.
+- Results from previous steps available for consumption in the next steps,
+  both in the workflow body and from within a step (see Reading previous
+  step results).
 
 ## Usage
 
@@ -114,6 +116,54 @@ def provision_vm(args):
   the step re-executes on the next claim.
 - A name must be a non-empty string without dots or whitespace, not purely
   numeric, and the full id must fit in 300 characters.
+
+### Reading previous step results
+
+A step can read the result of any step that has already completed in the
+current run, on both a fresh pass and a replay. The run keeps the shared
+outcome store current — each step's outcome is available as soon as it is
+recorded — so a step only ever needs to look at the current context:
+
+```python
+from d15n import context, step
+
+
+@step
+def create_vm(name, size):
+    return cloud_api.create_vm(name=name, size=size)
+
+
+@step
+def tag_vm():
+    vm_id = context.current().outcomes["create-vm"]["result"]
+    cloud_api.tag(vm_id, "provisioned")
+    return None
+
+
+@workflow
+def provision_vm(args):
+    create_vm(args["name"], args["size"], d15n_id="create-vm")
+    tag_vm()
+    return None
+```
+
+- `context.current().outcomes` maps each step id to a dict of `name`,
+  `status` (`"done"` or `"failed"`), `result` and `error`. A completed
+  step's value is `.outcomes[step_id]["result"]`; a failed step has
+  `result=None` and its encoded `error` set.
+- Steps are keyed by their step id: a top-level step is keyed by its
+  `d15n_id` (e.g. `"create-vm"`), an unnamed step by its positional dotpath
+  (`"1"`, `"2"`, ...). Name the steps you read, so the lookup is stable
+  across code edits.
+- A step sees every step that completed before it starts, including steps
+  recorded earlier in the same pass. It never sees its own result — that is
+  only recorded after the step returns.
+- Within a `parallel`, sibling branches run concurrently, so a branch must
+  not read a sibling's outcome: completion order is not guaranteed, and a
+  branch's step is keyed by its full dotpath (e.g. `"1.0.attach-ip"`). Read
+  sibling values from `parallel`'s return tuple instead; steps from an
+  earlier `parallel` or earlier sequential steps are safe to read.
+- Treat `.outcomes` as read-only; the engine maintains it.
 
 ### Scheduling
 
@@ -219,7 +269,6 @@ charges the order again, or sends the e-mail again.
 
 ## Roadmap
 
-- document context access (results of previous steps)
 - CI/CD on gha
 - remove leases in favor of deterministic runner names that get picked up
   again after restart (k8s statefulset pattern)

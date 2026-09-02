@@ -27,7 +27,10 @@ class Context:
     takes that name as its segment instead, which makes its id stable
     against edits elsewhere in the body. Names must be unique within a
     scope (one body, or one branch). The shared `outcomes` dict maps step
-    ids to recorded outcomes and is read-only during a run.
+    ids to `{name, status, result, error}` outcomes. It is seeded with all
+    outcomes recorded before the current claim and updated as each step
+    completes, so inside a step you can read any previously-completed
+    step's outcome from the current context. Treat it as read-only.
     """
 
     def __init__(self, workflow_id, outcomes, persistent, prefix=""):
