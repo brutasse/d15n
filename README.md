@@ -282,3 +282,4 @@ charges the order again, or sends the e-mail again.
   until configurable deadline, store results, orphan jobs and shut down. New
   runner coming up picks up where it left
 - sentry integration for unhandled excs in workflow runs
+- visualization / graph via AST parsing
