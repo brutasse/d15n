@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from d15n import context, serde
 from d15n.context import Context
-from d15n.errors import D15nError, SimulatedCrash, WorkflowCodeError
+from d15n.errors import D15nError, DrainOrphan, SimulatedCrash, WorkflowCodeError
 from d15n.models import Step, Workflow
 from d15n.registry import name_of, registry
 
@@ -36,6 +36,9 @@ def run_step(ctx, func, args, kwargs, d15n_id=None):
         if stored["status"] == Step.Status.FAILED:
             raise serde.decode_exception(stored["error"])
         return stored["result"]
+
+    if ctx.draining is not None and ctx.draining.is_set():
+        raise DrainOrphan()
 
     try:
         serde.dumps(list(args))
@@ -87,8 +90,14 @@ def run_step(ctx, func, args, kwargs, d15n_id=None):
     return result
 
 
-def execute(workflow_id):
-    """Run a claimed workflow to a terminal state (or a simulated crash)."""
+def execute(workflow_id, draining=None):
+    """Run a claimed workflow to a terminal state (or a simulated crash).
+
+    `draining` is an Event the runner sets on stop: the step in flight at
+    the signal finishes and is recorded, but no new step starts; the
+    DrainOrphan raised at the next step boundary is caught here and the
+    workflow is left running for the next runner to resume.
+    """
     workflow = Workflow.objects.get(id=workflow_id)
     func = registry.resolve(workflow.name)
 
@@ -102,7 +111,7 @@ def execute(workflow_id):
         for row in Step.objects.filter(workflow_id=workflow.id)
     }
 
-    ctx = Context(workflow_id=workflow.id, outcomes=outcomes, persistent=True)
+    ctx = Context(workflow_id=workflow.id, outcomes=outcomes, persistent=True, draining=draining)
     context.set_current(ctx)
     try:
         try:
@@ -110,6 +119,8 @@ def execute(workflow_id):
             error = None
         except SimulatedCrash:
             raise
+        except DrainOrphan:
+            return
         except Exception as exc:
             result = None
             error = exc

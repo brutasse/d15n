@@ -201,6 +201,18 @@ fixed name. On startup a worker re-claims the workflows it was running when
 it last went away (matched by name) and resumes them by replay; in steady
 state it only claims new scheduled workflows.
 
+**Rollouts:** on SIGTERM (or SIGINT) a worker stops claiming and drains: the
+step in flight in each of its workflows runs to the end and is stored, but
+no new step starts, so each workflow is left running at a step boundary. The
+worker waits for the in-flight steps up to `--drain` seconds (default 30)
+and then exits, orphaning whatever did not finish; a worker coming up under
+the same name re-claims them and resumes by replay, picking up where the old
+one left off. Keep `--drain` consistent with the worker's supervisor: below
+the termination grace period (k8s `terminationGracePeriodSeconds`, systemd
+`TimeoutStopSec`) so the worker exits before it is killed, and above the
+longest-running step so every in-flight step gets to finish and be stored.
+`--drain 0` waits for in-flight work indefinitely.
+
 **Drawback:** recovery is by identity, not by time. A workflow is only ever
 re-claimed by a worker with the same name. If that name never comes back
 (the StatefulSet is scaled down or deleted), its in-flight workflows are
@@ -286,9 +298,6 @@ charges the order again, or sends the e-mail again.
 - switch workflow UUID to time-based
 - document storage limits on result / error size
 - document thread safety aspects and guarantees
-- battle test runner rollouts: on sigterm, cleanly finish any ongoing step
-  until configurable deadline, store results, orphan jobs and shut down. New
-  runner coming up picks up where it left
 - sentry integration for unhandled excs in workflow runs
 - visualization / graph via AST parsing
 - workflow metrics: pool utilization, workflow processing health

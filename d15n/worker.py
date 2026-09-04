@@ -3,13 +3,20 @@
 A worker has a stable name that is identical across restarts. On startup it
 re-claims the workflows it was running when it last went away (matched by
 name); in steady state it only claims new scheduled workflows.
+
+On SIGTERM/SIGINT the worker stops claiming and drains: the step in flight
+in each workflow finishes and is recorded, but no new step starts, so the
+workflows are left running for the next worker with the same name. If the
+in-flight work does not finish within `drain` seconds, the process exits,
+orphaning whatever is still running.
 """
 
 import logging
+import os
 import socket
 import signal
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 
 from django.db import connection, connections, transaction
 from django.utils import timezone
@@ -82,16 +89,19 @@ def resume_own(limit, name):
 
 
 class Worker:
-    def __init__(self, pool_size=4, poll=0.2, name=None):
+    def __init__(self, pool_size=4, poll=0.2, name=None, drain=30):
         self.pool_size = pool_size
         self.poll = poll
         self.name = name or socket.gethostname()
+        self.drain = drain
         self._stop = threading.Event()
+        self._draining = threading.Event()
         self._futures = []
         self._executor = ThreadPoolExecutor(max_workers=pool_size, thread_name_prefix="d15n-w")
 
     def stop(self):
         self._stop.set()
+        self._draining.set()
 
     def run(self):
         _install_signal_handlers(self)
@@ -105,8 +115,33 @@ class Worker:
                         self._futures.append(self._executor.submit(self._execute, workflow.id))
                 self._stop.wait(self.poll)
         finally:
-            self._executor.shutdown(wait=True)
+            leftovers = self._drain()
+            if leftovers:
+                logger.warning(
+                    "d15n worker: drain deadline of %ss expired with %d workflow(s) still "
+                    "in flight; they are orphaned and will be picked up by the next worker "
+                    "named %r",
+                    self.drain, len(leftovers), self.name,
+                )
+                if threading.current_thread() is threading.main_thread():
+                    # Standalone worker: exit now rather than let the
+                    # interpreter join the abandoned pool threads at
+                    # shutdown. An embedded worker just returns; the host
+                    # process owns its own lifecycle.
+                    os._exit(0)
             connections.close_all()
+
+    def _drain(self):
+        """Stop queued work and wait up to `self.drain` seconds for the
+        in-flight workflows to finish. Returns the futures still running
+        when the deadline is hit. With drain of 0, waits indefinitely and
+        returns nothing."""
+        if not self.drain:
+            self._executor.shutdown(wait=True)
+            return []
+        self._executor.shutdown(wait=False, cancel_futures=True)
+        _, not_done = wait(self._futures, timeout=self.drain)
+        return list(not_done)
 
     def _catchup(self):
         """Re-claim this runner's in-flight workflows left over from before.
@@ -130,7 +165,7 @@ class Worker:
 
     def _execute(self, workflow_id):
         try:
-            execute(workflow_id)
+            execute(workflow_id, draining=self._draining)
         except Workflow.DoesNotExist:
             logger.warning("d15n worker: workflow %s no longer exists", workflow_id)
         except Exception as exc:

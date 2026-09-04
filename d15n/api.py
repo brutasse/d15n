@@ -7,7 +7,7 @@ from django.db import connections
 
 from d15n import context, serde
 from d15n.context import Context
-from d15n.errors import D15nError
+from d15n.errors import D15nError, DrainOrphan
 from d15n.models import Workflow
 from d15n.registry import name_of, registry
 from d15n.runner import run_step
@@ -132,6 +132,9 @@ def parallel(*branches, d15n_id=None):
     errors = [output for output in outputs if isinstance(output, _Failed)]
     if not errors:
         return tuple(output.value for output in outputs)
+    drains = [e for e in errors if isinstance(e.exc, DrainOrphan)]
+    if drains:
+        raise drains[0].exc
     if len(errors) == 1:
         raise errors[0].exc
     raise ExceptionGroup("d15n parallel branches failed", [e.exc for e in errors])

@@ -16,3 +16,12 @@ class StepFailure(D15nError):
 
 class WorkflowCodeError(D15nError):
     """A workflow body diverged from its previously recorded step identities."""
+
+
+class DrainOrphan(D15nError):
+    """Raised at a step boundary when the runner is draining after a stop signal.
+
+    The step in flight at the signal finishes and is recorded; no new step
+    starts. The workflow is left running to be resumed by the next runner
+    with the same name.
+    """

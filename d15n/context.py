@@ -33,11 +33,13 @@ class Context:
     step's outcome from the current context. Treat it as read-only.
     """
 
-    def __init__(self, workflow_id, outcomes, persistent, prefix=""):
+    def __init__(self, workflow_id, outcomes, persistent, prefix="", draining=None):
         self.workflow_id = workflow_id
         self.outcomes = outcomes
         self.persistent = persistent
         self.prefix = prefix
+        # Event set by the runner on stop; checked before each new step.
+        self.draining = draining
         self.counter = itertools.count(1)
         self._used_ids = set()
 
@@ -67,6 +69,7 @@ class Context:
             outcomes=self.outcomes,
             persistent=self.persistent,
             prefix=f"{fork_id}.{index}.",
+            draining=self.draining,
         )
 
 
