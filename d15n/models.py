@@ -41,7 +41,6 @@ class Workflow(models.Model):
         max_length=16, choices=Status.choices, default=Status.SCHEDULED, db_index=True
     )
     claimed_by = models.CharField(max_length=255, null=True, blank=True)
-    claimed_at = models.DateTimeField(null=True, blank=True)
     result = D15nJSONField(null=True, blank=True)
     error = D15nJSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)

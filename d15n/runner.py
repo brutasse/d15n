@@ -81,7 +81,6 @@ def run_step(ctx, func, args, kwargs, d15n_id=None):
             "result": result,
             "error": error_payload,
         }
-        _refresh_lease(ctx.workflow_id)
 
     if error is not None:
         raise error
@@ -133,10 +132,4 @@ def execute(workflow_id):
         status=Workflow.Status.COMPLETED,
         result=result,
         completed_at=now,
-    )
-
-
-def _refresh_lease(workflow_id):
-    Workflow.objects.filter(id=workflow_id, status=Workflow.Status.RUNNING).update(
-        claimed_at=timezone.now()
     )

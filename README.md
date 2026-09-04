@@ -188,14 +188,24 @@ workflow instead of creating a new one.
 ### Running workers
 
 ```
-python manage.py d15n_worker --pool 8 --poll 0.2 --lease 300
+python manage.py d15n_worker --pool 8 --poll 0.2 --name d15n-runner-0
 ```
 
 Workers require PostgreSQL. They poll for due workflows
-(`SELECT ... FOR UPDATE SKIP LOCKED`) and run them on a thread pool. The
-lease is refreshed on every recorded step; a workflow whose lease expired is
-re-claimable by any worker, which resumes it by replay. The lease must be
-longer than the longest single step.
+(`SELECT ... FOR UPDATE SKIP LOCKED`) and run them on a thread pool.
+
+Each worker runs under a stable **name** (default: the hostname). The name
+must be identical across restarts and unique among concurrently running
+workers — a k8s StatefulSet gives you both for free, since each pod has a
+fixed name. On startup a worker re-claims the workflows it was running when
+it last went away (matched by name) and resumes them by replay; in steady
+state it only claims new scheduled workflows.
+
+**Drawback:** recovery is by identity, not by time. A workflow is only ever
+re-claimed by a worker with the same name. If that name never comes back
+(the StatefulSet is scaled down or deleted), its in-flight workflows are
+orphaned — no other worker will steal them. Re-run them manually or point a
+worker at the orphaned name.
 
 ### Semantics
 
@@ -270,8 +280,6 @@ charges the order again, or sends the e-mail again.
 ## Roadmap
 
 - CI/CD on gha
-- remove leases in favor of deterministic runner names that get picked up
-  again after restart (k8s statefulset pattern)
 - document/add sugar for sequential steps in parallel (wrapping step that
   invokes the sequence in order or arrays of steps for each sequence in the
   parallel() call)
@@ -283,3 +291,4 @@ charges the order again, or sends the e-mail again.
   runner coming up picks up where it left
 - sentry integration for unhandled excs in workflow runs
 - visualization / graph via AST parsing
+- workflow metrics: pool utilization, workflow processing health

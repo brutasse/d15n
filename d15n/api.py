@@ -3,6 +3,8 @@
 import functools
 from concurrent.futures import ThreadPoolExecutor
 
+from django.db import connections
+
 from d15n import context, serde
 from d15n.context import Context
 from d15n.errors import D15nError
@@ -88,6 +90,10 @@ def _run_branch(ctx, fork_id, index, branch):
             return _Failed(exc)
     finally:
         context.clear_current()
+        # Branches run on pool threads and Django connections are thread-local;
+        # release this thread's connection so it is not leaked when the
+        # pool thread exits.
+        connections.close_all()
 
 
 def parallel(*branches, d15n_id=None):

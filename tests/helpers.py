@@ -1,21 +1,13 @@
-from datetime import timedelta
-
-from django.utils import timezone
-
 from d15n import schedule
-from d15n import runner
 from d15n.errors import SimulatedCrash
-from d15n.models import Workflow
 from d15n.runner import execute
-from d15n.worker import claim
-
-TEST_LEASE = 300
+from d15n.worker import claim_new, resume_own
 
 
 def run_to_completion(*args, **kwargs):
     """Schedule, claim and execute a workflow; return the completed instance."""
     run = schedule(*args, **kwargs)
-    claimed = claim(1, TEST_LEASE, "test-worker")
+    claimed = claim_new(1, "test-worker")
     assert [w.id for w in claimed] == [run.id], f"claimed {[w.id for w in claimed]}"
     execute(run.id)
     run.refresh_from_db()
@@ -23,17 +15,17 @@ def run_to_completion(*args, **kwargs):
 
 
 def claim_next(worker="test-worker"):
-    claimed = claim(1, TEST_LEASE, worker)
+    claimed = claim_new(1, worker)
     assert len(claimed) == 1, f"expected one claimable workflow, got {[w.id for w in claimed]}"
     return claimed[0]
 
 
-def re_claim(run, worker="test-worker-2"):
-    """Expire the lease and claim the workflow with another worker."""
-    Workflow.objects.filter(id=run.id).update(
-        claimed_at=timezone.now() - timedelta(seconds=TEST_LEASE + 1)
-    )
-    return claim_next(worker)
+def re_claim(run):
+    """Simulate the claiming runner restarting and re-claiming its workflow."""
+    run.refresh_from_db()
+    claimed = resume_own(1, run.claimed_by)
+    assert [w.id for w in claimed] == [run.id], f"expected to re-claim {run.id}, got {[w.id for w in claimed]}"
+    return claimed[0]
 
 
 def crash_on(step_id):

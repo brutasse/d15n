@@ -4,18 +4,24 @@ from d15n.worker import Worker
 
 
 class Command(BaseCommand):
-    help = "Run d15n workers: claim and execute due workflows."
+    help = "Run a d15n runner: claim and execute due workflows."
 
     def add_arguments(self, parser):
         parser.add_argument("--pool", type=int, default=4, help="thread pool size")
         parser.add_argument("--poll", type=float, default=0.2, help="seconds between claim polls")
         parser.add_argument(
-            "--lease", type=int, default=300, help="lease TTL in seconds for running workflows"
+            "--name",
+            default=None,
+            help=(
+                "stable runner name (default: hostname). Must be identical across "
+                "restarts so the runner re-claims its in-flight workflows; it must "
+                "also be unique among concurrently running runners."
+            ),
         )
 
     def handle(self, *args, **options):
         Worker(
             pool_size=options["pool"],
             poll=options["poll"],
-            lease_seconds=options["lease"],
+            name=options["name"],
         ).run()
