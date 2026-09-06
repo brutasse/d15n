@@ -17,6 +17,7 @@ from d15n.context import Context
 from d15n.errors import D15nError, DrainOrphan, SimulatedCrash, WorkflowCodeError
 from d15n.models import Step, Workflow
 from d15n.registry import name_of, registry
+from d15n.telemetry import report_workflow_failure
 
 fault = None
 
@@ -129,6 +130,7 @@ def execute(workflow_id, draining=None):
 
     now = timezone.now()
     if error is not None:
+        report_workflow_failure(error, workflow_id=workflow.id, workflow_name=workflow.name)
         Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
             status=Workflow.Status.FAILED,
             error=serde.encode_exception(error),

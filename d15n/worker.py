@@ -24,6 +24,7 @@ from django.utils import timezone
 from d15n import serde
 from d15n.models import Workflow
 from d15n.runner import execute
+from d15n.telemetry import report_workflow_failure
 
 logger = logging.getLogger("d15n")
 
@@ -170,6 +171,7 @@ class Worker:
             logger.warning("d15n worker: workflow %s no longer exists", workflow_id)
         except Exception as exc:
             logger.exception("d15n worker: workflow %s crashed outside the runner", workflow_id)
+            report_workflow_failure(exc, workflow_id=workflow_id)
             try:
                 Workflow.objects.filter(id=workflow_id, status=Workflow.Status.RUNNING).update(
                     status=Workflow.Status.FAILED,

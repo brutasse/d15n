@@ -224,6 +224,18 @@ re-claimed by a worker with the same name. If that name never comes back
 orphaned — no other worker will steal them. Re-run them manually or point a
 worker at the orphaned name.
 
+### Sentry
+
+If `sentry-sdk` is installed and initialized in the host application
+(`sentry_sdk.init(dsn=...)`), every unhandled exception that fails a
+workflow run is reported to Sentry, with the workflow's name and id
+attached. Control-flow exceptions (`SimulatedCrash`, drain orphans) are
+never reported.
+
+```
+pip install "d15n[sentry]"
+```
+
 ### Semantics
 
 - Recovery is replay-based: on any claim the workflow body is re-run from the
@@ -297,9 +309,12 @@ charges the order again, or sends the e-mail again.
 ## Roadmap
 
 - CI/CD on gha
-- document storage limits on result / error size
-- document thread safety aspects and guarantees
-- sentry integration for unhandled excs in workflow runs
+  - test matrix with mariadb
+- docs:
+  - prettier, multi-page and more detailed docs with zensical
+  - document storage limits on result / error size
+  - document thread safety aspects and guarantees
 - visualization / graph via AST parsing
 - workflow metrics: pool utilization, workflow processing health
 - workflow runs as otel traces
+- failure handling / interrupting the workflow explicitly
