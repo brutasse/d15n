@@ -73,6 +73,11 @@ def test_schedule_commits_with_caller_transaction():
     assert Workflow.objects.count() == 1
 
 
+def test_workflow_id_is_time_based_uuid7():
+    wf = schedule(chain, {"n": 1})
+    assert wf.id.version == 7
+
+
 def test_idempotency_key_returns_existing_workflow():
     first = schedule(chain, {"n": 1}, idempotency_key="order-42")
     second = schedule(chain, {"n": 2}, idempotency_key="order-42")

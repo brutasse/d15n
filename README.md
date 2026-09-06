@@ -297,9 +297,9 @@ charges the order again, or sends the e-mail again.
 ## Roadmap
 
 - CI/CD on gha
-- switch workflow UUID to time-based
 - document storage limits on result / error size
 - document thread safety aspects and guarantees
 - sentry integration for unhandled excs in workflow runs
 - visualization / graph via AST parsing
 - workflow metrics: pool utilization, workflow processing health
+- workflow runs as otel traces

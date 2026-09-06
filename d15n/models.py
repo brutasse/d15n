@@ -1,9 +1,23 @@
 import json
+import os
+import time
 import uuid as uuid_lib
 
 from django.db import models
 
 from d15n import serde
+
+try:  # Python 3.14+
+    uuid7 = uuid_lib.uuid7
+except AttributeError:
+    # Drop once requires-python is >=3.14 (Python 3.13 EOL Oct 2029).
+
+    def uuid7() -> uuid_lib.UUID:
+        ts_ms = int(time.time_ns() // 1_000_000) & 0xFFFFFFFFFFFF
+        raw = bytearray(ts_ms.to_bytes(6, "big") + os.urandom(10))
+        raw[6] = (raw[6] & 0x0F) | 0x70
+        raw[8] = (raw[8] & 0x3F) | 0x80
+        return uuid_lib.UUID(bytes=bytes(raw))
 
 
 class D15nJSONEncoder(json.JSONEncoder):
@@ -33,7 +47,7 @@ class Workflow(models.Model):
         COMPLETED = "completed"
         FAILED = "failed"
 
-    id = models.UUIDField(primary_key=True, default=uuid_lib.uuid4, editable=False)
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     name = models.CharField(max_length=300)
     args = D15nJSONField(default=list)
     idempotency_key = models.CharField(max_length=255, null=True, blank=True)
