@@ -96,10 +96,29 @@ def _run_branch(ctx, fork_id, index, branch):
         connections.close_all()
 
 
+def _as_branch(branch):
+    if not isinstance(branch, (list, tuple)):
+        return branch
+    if not branch:
+        raise ValueError("parallel() sequence branches must not be empty")
+    for call in branch:
+        if not callable(call):
+            raise TypeError(
+                f"parallel() sequence branches take zero-arg callables, got {call!r}"
+            )
+
+    def run():
+        return tuple(call() for call in branch)
+
+    return run
+
+
 def parallel(*branches, d15n_id=None):
     """Run zero-arg callables concurrently; return their results in order.
 
-    Each branch is a single step (a @step function or a lambda calling one).
+    Each branch is a single step (a @step function or a lambda calling one),
+    or a list of zero-arg callables run in order within the branch; such a
+    sequence branch returns a tuple of its steps' results.
     If any branch raises, the first error is re-raised (single branch) or an
     ExceptionGroup is raised (several branches).
 
@@ -108,6 +127,7 @@ def parallel(*branches, d15n_id=None):
     """
     if not branches:
         raise ValueError("parallel() requires at least one branch")
+    branches = tuple(_as_branch(branch) for branch in branches)
 
     ctx = context.current()
     owns_ctx = False

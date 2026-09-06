@@ -80,9 +80,12 @@ def provision_vm(args):
 ```
 
 `parallel(*branches)` takes zero-arg callables (usually lambdas calling one
-`@step`), runs them concurrently and returns their results in order. If any
-branch raises, the single error is re-raised (one failing branch) or an
-`ExceptionGroup` is raised (several).
+`@step`), runs them concurrently and returns their results in order. A branch
+may also be a list of zero-arg callables; it then runs its steps in order and
+returns a tuple of the branch's results. A later step in a sequence can read
+an earlier step's result from `context.current().outcomes` (see Reading
+previous step results). If any branch raises, the single error is re-raised
+(one failing branch) or an `ExceptionGroup` is raised (several).
 
 ### Naming steps
 
@@ -163,6 +166,8 @@ def provision_vm(args):
   branch's step is keyed by its full dotpath (e.g. `"1.0.attach-ip"`). Read
   sibling values from `parallel`'s return tuple instead; steps from an
   earlier `parallel` or earlier sequential steps are safe to read.
+- Steps within one branch run in order, so a later step in a sequence branch
+  can read an earlier step's outcome from the same branch.
 - Treat `.outcomes` as read-only; the engine maintains it.
 
 ### Scheduling
@@ -292,9 +297,6 @@ charges the order again, or sends the e-mail again.
 ## Roadmap
 
 - CI/CD on gha
-- document/add sugar for sequential steps in parallel (wrapping step that
-  invokes the sequence in order or arrays of steps for each sequence in the
-  parallel() call)
 - switch workflow UUID to time-based
 - document storage limits on result / error size
 - document thread safety aspects and guarantees
