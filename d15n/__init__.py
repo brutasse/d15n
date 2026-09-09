@@ -1,6 +1,8 @@
 """d15n: durable workflow execution for Django."""
 
-__all__ = ["parallel", "schedule", "step", "workflow"]
+from d15n.errors import Terminal
+
+__all__ = ["Terminal", "parallel", "schedule", "step", "workflow"]
 
 
 def __getattr__(name):

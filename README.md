@@ -190,6 +190,37 @@ workflow becomes claimable by workers, on rollback it is gone. With an
 `idempotency_key`, a repeated schedule with the same key returns the existing
 workflow instead of creating a new one.
 
+### Stopping a workflow for a known reason
+
+A step can stop the workflow deliberately, for a known condition, instead of
+letting it fail:
+
+```python
+from d15n import Terminal, step, workflow
+
+
+@step
+def upload(node_id, data):
+    result = storage.upload(node_id, data)
+    if result.node_full:
+        # Hand off to the caller: it picks another node and re-schedules.
+        raise Terminal("node-full", {"node_id": node_id})
+    return result
+
+
+@workflow
+def upload_to_node(args):
+    return upload(args["node"], args["data"])
+```
+
+Raising `Terminal(reason, payload)` ends the workflow in the `stopped` status
+before the next step: the step in flight runs to completion and is recorded,
+but no further step starts and the engine will not retry it. Unlike a
+workflow that `failed` on an unhandled step exception, a `stopped` workflow
+is not reported to Sentry. The caller reads `reason` and `payload` back from
+`run.error` (with `d15n.serde.decode_exception`) and takes over — for
+example, picking another node and calling `schedule` again.
+
 ### Running workers
 
 ```
@@ -229,8 +260,8 @@ worker at the orphaned name.
 If `sentry-sdk` is installed and initialized in the host application
 (`sentry_sdk.init(dsn=...)`), every unhandled exception that fails a
 workflow run is reported to Sentry, with the workflow's name and id
-attached. Control-flow exceptions (`SimulatedCrash`, drain orphans) are
-never reported.
+attached. Control-flow exceptions (`SimulatedCrash`, drain orphans) and
+workflows a step stopped with `Terminal` are never reported.
 
 ```
 pip install "d15n[sentry]"
@@ -311,10 +342,10 @@ charges the order again, or sends the e-mail again.
 - CI/CD on gha
   - test matrix with mariadb
 - docs:
-  - prettier, multi-page and more detailed docs with zensical
+  - prettier, multi-page and more detailed docs with zensical (quick start,
+    config, deploy, operations)
   - document storage limits on result / error size
   - document thread safety aspects and guarantees
 - visualization / graph via AST parsing
 - workflow metrics: pool utilization, workflow processing health
 - workflow runs as otel traces
-- failure handling / interrupting the workflow explicitly

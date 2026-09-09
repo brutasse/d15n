@@ -46,6 +46,7 @@ class Workflow(models.Model):
         RUNNING = "running"
         COMPLETED = "completed"
         FAILED = "failed"
+        STOPPED = "stopped"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     name = models.CharField(max_length=300)

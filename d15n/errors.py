@@ -25,3 +25,22 @@ class DrainOrphan(D15nError):
     starts. The workflow is left running to be resumed by the next runner
     with the same name.
     """
+
+
+class Terminal(D15nError):
+    """Raised from a step to stop the workflow for a known reason.
+
+    The step in flight finishes and is recorded; no new step starts and the
+    engine will not retry the workflow. It ends in the `stopped` status with
+    the reason and payload recorded on it, so the caller can take over (for
+    example, re-scheduling with a different resource). Not a failure: it is
+    never reported to Sentry.
+    """
+
+    def __init__(self, reason, payload=None):
+        self.reason = reason
+        self.payload = payload
+        super().__init__(reason, payload)
+
+    def __str__(self):
+        return str(self.reason)

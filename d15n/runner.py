@@ -14,7 +14,13 @@ from django.utils import timezone
 
 from d15n import context, serde
 from d15n.context import Context
-from d15n.errors import D15nError, DrainOrphan, SimulatedCrash, WorkflowCodeError
+from d15n.errors import (
+    D15nError,
+    DrainOrphan,
+    SimulatedCrash,
+    Terminal,
+    WorkflowCodeError,
+)
 from d15n.models import Step, Workflow
 from d15n.registry import name_of, registry
 from d15n.telemetry import report_workflow_failure
@@ -121,6 +127,13 @@ def execute(workflow_id, draining=None):
         except SimulatedCrash:
             raise
         except DrainOrphan:
+            return
+        except Terminal as t:
+            Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
+                status=Workflow.Status.STOPPED,
+                error=serde.encode_exception(t),
+                completed_at=timezone.now(),
+            )
             return
         except Exception as exc:
             result = None

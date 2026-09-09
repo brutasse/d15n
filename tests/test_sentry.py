@@ -5,7 +5,7 @@ import types
 import pytest
 
 from d15n import runner
-from d15n import schedule, step, workflow
+from d15n import Terminal, schedule, step, workflow
 from d15n.errors import SimulatedCrash
 from d15n.models import Workflow
 from d15n.runner import execute
@@ -109,6 +109,32 @@ def test_simulated_crash_is_not_reported(sentry):
     runner.fault = crash_on("1")
     with pytest.raises(SimulatedCrash):
         execute(run.id)
+    assert sentry.events == []
+
+
+@step
+def t_first():
+    return "1"
+
+
+@step
+def t_second():
+    raise Terminal("stop", {"x": 1})
+
+
+@workflow
+def t_flow(args):
+    t_first()
+    t_second()
+    return "ok"
+
+
+def test_terminal_is_not_reported(sentry):
+    run = schedule(t_flow, {})
+    claim_next()
+    execute(run.id)
+    run.refresh_from_db()
+    assert run.status == Workflow.Status.STOPPED
     assert sentry.events == []
 
 

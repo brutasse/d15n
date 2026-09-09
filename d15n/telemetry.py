@@ -5,16 +5,16 @@ unhandled exception that fails a workflow run is reported to Sentry with the
 workflow's identity attached. Without sentry-sdk, reporting is a no-op.
 """
 
-from d15n.errors import DrainOrphan, SimulatedCrash
+from d15n.errors import DrainOrphan, SimulatedCrash, Terminal
 
 
 def report_workflow_failure(exc, *, workflow_id, workflow_name=None):
     """Report an unhandled workflow failure to Sentry, if configured.
 
-    Control-flow exceptions (SimulatedCrash, DrainOrphan) are not failures
-    and are never reported.
+    Control-flow exceptions (SimulatedCrash, DrainOrphan, Terminal) are not
+    failures and are never reported.
     """
-    if isinstance(exc, (SimulatedCrash, DrainOrphan)):
+    if isinstance(exc, (SimulatedCrash, DrainOrphan, Terminal)):
         return
     try:
         import sentry_sdk
