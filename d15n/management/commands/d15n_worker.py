@@ -27,6 +27,20 @@ class Command(BaseCommand):
                 "also be unique among concurrently running runners."
             ),
         )
+        parser.add_argument(
+            "--metrics-port",
+            type=int,
+            default=0,
+            help=(
+                "serve Prometheus metrics on this TCP port (0: disabled). Requires "
+                'the metrics extra: pip install "d15n[metrics]".'
+            ),
+        )
+        parser.add_argument(
+            "--metrics-bind",
+            default="0.0.0.0",
+            help="interface to bind the metrics endpoint to (default: 0.0.0.0)",
+        )
 
     def handle(self, *args, **options):
         Worker(
@@ -34,4 +48,6 @@ class Command(BaseCommand):
             poll=options["poll"],
             drain=options["drain"],
             name=options["name"],
+            metrics_port=options["metrics_port"],
+            metrics_bind=options["metrics_bind"],
         ).run()

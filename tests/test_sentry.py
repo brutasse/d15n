@@ -148,8 +148,8 @@ def test_runner_escape_is_reported(sentry):
     # _execute closes the thread's DB connection, so the test must not rely on
     # a wrapping transaction to keep its setup data alive.
     run = schedule(blobby, {})
-    claim_next()
-    Worker(pool_size=1)._execute(run.id)
+    claimed = claim_next()
+    Worker(pool_size=1)._execute(claimed)
     run.refresh_from_db()
 
     assert run.status == Workflow.Status.FAILED

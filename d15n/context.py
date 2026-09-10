@@ -33,8 +33,9 @@ class Context:
     step's outcome from the current context. Treat it as read-only.
     """
 
-    def __init__(self, workflow_id, outcomes, persistent, prefix="", draining=None):
+    def __init__(self, workflow_id, outcomes, persistent, prefix="", draining=None, workflow_name=None):
         self.workflow_id = workflow_id
+        self.workflow_name = workflow_name
         self.outcomes = outcomes
         self.persistent = persistent
         self.prefix = prefix
@@ -70,6 +71,7 @@ class Context:
             persistent=self.persistent,
             prefix=f"{fork_id}.{index}.",
             draining=self.draining,
+            workflow_name=self.workflow_name,
         )
 
 

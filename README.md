@@ -267,6 +267,67 @@ workflows a step stopped with `Terminal` are never reported.
 pip install "d15n[sentry]"
 ```
 
+### Metrics
+
+d15n exposes Prometheus metrics for workflow processing health and runner
+health. Install the extra to enable them; without it, all metric recording is
+a no-op.
+
+```
+pip install "d15n[metrics]"
+```
+
+**Runner endpoint.** A worker can serve the metrics of its own process —
+runner health, pool utilization, and per-workflow execution — on an HTTP
+endpoint:
+
+```
+python manage.py d15n_worker --metrics-port 9117
+```
+
+Prometheus then scrapes `http://<runner>:9117/`. The endpoint is
+unauthenticated; keep it behind network segmentation. `--metrics-bind`
+controls the interface (default `0.0.0.0`, for in-cluster scraping).
+
+**Host application.** All d15n collectors register in the default
+`prometheus_client` registry, so a metrics endpoint in the host application
+already serves in-process d15n metrics (for example from an embedded worker)
+with no configuration. To also expose the queue state computed from the
+database, mount the provided view:
+
+```python
+from d15n import views
+
+urlpatterns = [
+    path("d15n/metrics", views.metrics_view),
+]
+```
+
+It refreshes the queue gauges on every scrape. `d15n.metrics.update_queue_gauges()`
+does the same for a custom scrape handler.
+
+**Metrics.**
+
+- `d15n_workflow_runs_total{workflow, status}` — runs ended, by final status
+  (`completed`, `failed`, `stopped`)
+- `d15n_workflow_duration_seconds{workflow, status}` — wall time from claim
+  to terminal state
+- `d15n_step_runs_total{workflow, step, status}` — step executions, by outcome
+  (`done`, `failed`)
+- `d15n_step_duration_seconds{workflow, step}` — step execution time
+- `d15n_worker_pool_size{runner}`, `d15n_worker_inflight{runner}` — pool
+  utilization
+- `d15n_worker_claims_total{runner}`, `d15n_worker_orphans_total{runner}` —
+  workflows claimed; workflows orphaned when the drain deadline expired
+- `d15n_worker_started_at_seconds{runner}` — worker start time (uptime)
+- `d15n_workflows_pending`, `d15n_workflows_running` — queue depth from the
+  database
+- `d15n_workflows_oldest_pending_age_seconds` — age of the oldest scheduled
+  workflow
+
+Labels are bounded to code-defined names (workflow and step function names,
+runner name), never to per-run identifiers.
+
 ### Semantics
 
 - Recovery is replay-based: on any claim the workflow body is re-run from the
@@ -346,6 +407,5 @@ charges the order again, or sends the e-mail again.
     config, deploy, operations)
   - document storage limits on result / error size
   - document thread safety aspects and guarantees
-- visualization / graph via AST parsing
-- workflow metrics: pool utilization, workflow processing health
+- visualization / UI, graph via AST parsing
 - workflow runs as otel traces

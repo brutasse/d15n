@@ -9,10 +9,12 @@ side effect has run but before its outcome is recorded. Raising
 SimulatedCrash simulates a worker process dying at that point.
 """
 
+import time
+
 from django.db import transaction
 from django.utils import timezone
 
-from d15n import context, serde
+from d15n import context, metrics, serde
 from d15n.context import Context
 from d15n.errors import (
     D15nError,
@@ -53,12 +55,14 @@ def run_step(ctx, func, args, kwargs, d15n_id=None):
     except (TypeError, ValueError) as exc:
         raise D15nError(f"step {name!r} arguments are not serializable: {exc}") from exc
 
+    started = time.monotonic()
     try:
         result = func(*args, **kwargs)
         error = None
     except Exception as exc:
         result = None
         error = exc
+    duration = time.monotonic() - started
 
     if error is None:
         try:
@@ -82,6 +86,7 @@ def run_step(ctx, func, args, kwargs, d15n_id=None):
                 result=result,
                 error=error_payload,
             )
+        metrics.record_step(ctx.workflow_name, name, status, duration)
         # Keep the shared outcome store current, so a later step can read
         # this step's outcome via context.current().outcomes. On a replay the
         # outcome is already present from the claim-time snapshot.
@@ -105,6 +110,7 @@ def execute(workflow_id, draining=None):
     DrainOrphan raised at the next step boundary is caught here and the
     workflow is left running for the next runner to resume.
     """
+    started = time.monotonic()
     workflow = Workflow.objects.get(id=workflow_id)
     func = registry.resolve(workflow.name)
 
@@ -118,7 +124,13 @@ def execute(workflow_id, draining=None):
         for row in Step.objects.filter(workflow_id=workflow.id)
     }
 
-    ctx = Context(workflow_id=workflow.id, outcomes=outcomes, persistent=True, draining=draining)
+    ctx = Context(
+        workflow_id=workflow.id,
+        outcomes=outcomes,
+        persistent=True,
+        draining=draining,
+        workflow_name=workflow.name,
+    )
     context.set_current(ctx)
     try:
         try:
@@ -129,11 +141,13 @@ def execute(workflow_id, draining=None):
         except DrainOrphan:
             return
         except Terminal as t:
-            Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
+            updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
                 status=Workflow.Status.STOPPED,
                 error=serde.encode_exception(t),
                 completed_at=timezone.now(),
             )
+            if updated:
+                metrics.record_workflow_terminal(workflow.name, "stopped", time.monotonic() - started)
             return
         except Exception as exc:
             result = None
@@ -144,18 +158,22 @@ def execute(workflow_id, draining=None):
     now = timezone.now()
     if error is not None:
         report_workflow_failure(error, workflow_id=workflow.id, workflow_name=workflow.name)
-        Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
+        updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
             status=Workflow.Status.FAILED,
             error=serde.encode_exception(error),
             completed_at=now,
         )
+        if updated:
+            metrics.record_workflow_terminal(workflow.name, "failed", time.monotonic() - started)
         return
     try:
         serde.dumps(result)
     except (TypeError, ValueError) as exc:
         raise D15nError(f"workflow result for {workflow.name!r} is not serializable: {exc}") from exc
-    Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
+    updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
         status=Workflow.Status.COMPLETED,
         result=result,
         completed_at=now,
     )
+    if updated:
+        metrics.record_workflow_terminal(workflow.name, "completed", time.monotonic() - started)

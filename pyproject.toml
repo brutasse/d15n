@@ -10,11 +10,13 @@ dependencies = [
 
 [project.optional-dependencies]
 sentry = ["sentry-sdk>=2.0"]
+metrics = ["prometheus-client>=0.20"]
 
 [dependency-groups]
 dev = [
     "pytest>=8",
     "pytest-django>=4.9",
+    "prometheus-client>=0.20",
 ]
 
 [build-system]

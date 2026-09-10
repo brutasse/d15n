@@ -16,12 +16,14 @@ import os
 import socket
 import signal
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from django.db import connection, connections, transaction
 from django.utils import timezone
 
-from d15n import serde
+from d15n import metrics, serde
+from d15n.errors import DrainOrphan, SimulatedCrash, Terminal
 from d15n.models import Workflow
 from d15n.runner import execute
 from d15n.telemetry import report_workflow_failure
@@ -90,15 +92,20 @@ def resume_own(limit, name):
 
 
 class Worker:
-    def __init__(self, pool_size=4, poll=0.2, name=None, drain=30):
+    def __init__(
+        self, pool_size=4, poll=0.2, name=None, drain=30, metrics_port=0, metrics_bind="0.0.0.0"
+    ):
         self.pool_size = pool_size
         self.poll = poll
         self.name = name or socket.gethostname()
         self.drain = drain
+        self.metrics_port = metrics_port
+        self.metrics_bind = metrics_bind
         self._stop = threading.Event()
         self._draining = threading.Event()
         self._futures = []
         self._executor = ThreadPoolExecutor(max_workers=pool_size, thread_name_prefix="d15n-w")
+        self._metrics_server = None
 
     def stop(self):
         self._stop.set()
@@ -107,17 +114,23 @@ class Worker:
     def run(self):
         _install_signal_handlers(self)
         try:
+            metrics.worker_started(self.name, self.pool_size)
+            self._start_metrics_server()
             self._catchup()
             while not self._stop.is_set():
                 self._reap()
                 capacity = self.pool_size - len(self._futures)
                 if capacity > 0:
-                    for workflow in claim_new(capacity, self.name):
-                        self._futures.append(self._executor.submit(self._execute, workflow.id))
+                    claimed = claim_new(capacity, self.name)
+                    for workflow in claimed:
+                        self._futures.append(self._executor.submit(self._execute, workflow))
+                    metrics.record_claims(self.name, len(claimed))
+                metrics.set_inflight(self.name, len(self._futures))
                 self._stop.wait(self.poll)
         finally:
             leftovers = self._drain()
             if leftovers:
+                metrics.record_orphans(self.name, len(leftovers))
                 logger.warning(
                     "d15n worker: drain deadline of %ss expired with %d workflow(s) still "
                     "in flight; they are orphaned and will be picked up by the next worker "
@@ -130,7 +143,15 @@ class Worker:
                     # shutdown. An embedded worker just returns; the host
                     # process owns its own lifecycle.
                     os._exit(0)
+            metrics.set_inflight(self.name, 0)
+            if self._metrics_server is not None:
+                self._metrics_server.server_close()
             connections.close_all()
+
+    def _start_metrics_server(self):
+        if not self.metrics_port:
+            return
+        self._metrics_server = metrics.start_http_server(self.metrics_port, self.metrics_bind)
 
     def _drain(self):
         """Stop queued work and wait up to `self.drain` seconds for the
@@ -150,8 +171,10 @@ class Worker:
         Runs once at startup, before the poll loop, so it cannot re-select
         workflows this process is already executing in its pool.
         """
-        for workflow in resume_own(self.pool_size, self.name):
-            self._futures.append(self._executor.submit(self._execute, workflow.id))
+        workflows = resume_own(self.pool_size, self.name)
+        for workflow in workflows:
+            self._futures.append(self._executor.submit(self._execute, workflow))
+        metrics.record_claims(self.name, len(workflows))
 
     def _reap(self):
         pending = []
@@ -164,22 +187,27 @@ class Worker:
                 pending.append(future)
         self._futures = pending
 
-    def _execute(self, workflow_id):
+    def _execute(self, workflow):
+        started = time.monotonic()
         try:
-            execute(workflow_id, draining=self._draining)
+            execute(workflow.id, draining=self._draining)
         except Workflow.DoesNotExist:
-            logger.warning("d15n worker: workflow %s no longer exists", workflow_id)
+            logger.warning("d15n worker: workflow %s no longer exists", workflow.id)
         except Exception as exc:
-            logger.exception("d15n worker: workflow %s crashed outside the runner", workflow_id)
-            report_workflow_failure(exc, workflow_id=workflow_id)
+            logger.exception("d15n worker: workflow %s crashed outside the runner", workflow.id)
+            report_workflow_failure(exc, workflow_id=workflow.id)
             try:
-                Workflow.objects.filter(id=workflow_id, status=Workflow.Status.RUNNING).update(
+                updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
                     status=Workflow.Status.FAILED,
                     error=serde.encode_exception(exc),
                     completed_at=timezone.now(),
                 )
+                if updated and not isinstance(exc, (SimulatedCrash, DrainOrphan, Terminal)):
+                    metrics.record_workflow_terminal(
+                        workflow.name, "failed", time.monotonic() - started
+                    )
             except Exception:
-                logger.exception("d15n worker: could not mark workflow %s failed", workflow_id)
+                logger.exception("d15n worker: could not mark workflow %s failed", workflow.id)
         finally:
             # Pool threads are long-lived and Django connections are
             # thread-local, so release this thread's connection to avoid
