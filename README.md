@@ -351,6 +351,40 @@ pip install "d15n[otel]"
 d15n only creates spans; the host application owns the `TracerProvider`
 and its exporters (for example OTLP), exactly as it owns Sentry.
 
+### UI
+
+d15n ships a self-contained single-page UI — inline CSS and JS, no CDN
+assets — that shows workflow runs, live progress, step outputs and runners.
+Mount it in the host application:
+
+```python
+urlpatterns = [
+    path("d15n/", include("d15n.urls")),
+]
+```
+
+- `/` — the UI page
+- `/api/runs` — recent runs as JSON; `?status=` filters by run status
+- `/api/run/<id>` — one run: the annotated step graph, plus the recorded
+  steps with their args, results and errors
+- `/api/stream` — Server-Sent Events: a runs snapshot re-sent on every
+  change to the database. Clients whose proxies do not stream fall back to
+  polling `/api/runs`.
+
+For a workflow whose body is a straight sequence of steps and `parallel`
+forks, the UI renders the intended structure of the workflow — parsed from
+the source via the AST — with each step's live status overlaid on it:
+recorded steps show their outcome, the next eligible step of a running
+workflow is shown in flight, the rest are pending. Workflows the parser
+cannot prove (control flow, loops, dynamic step ids, calls through local
+names) fall back to a flat view built from the recorded step ids.
+
+Runners are the distinct `claimed_by` of the running workflows, with their
+in-flight counts; an idle runner has nothing in flight and does not appear.
+
+Like the metrics endpoint, the UI is unauthenticated: keep the mount behind
+network segmentation or your own authentication.
+
 ### Semantics
 
 - Recovery is replay-based: on any claim the workflow body is re-run from the
@@ -430,4 +464,4 @@ charges the order again, or sends the e-mail again.
     config, deploy, operations)
   - document storage limits on result / error size
   - document thread safety aspects and guarantees
-- visualization / UI, graph via AST parsing
+

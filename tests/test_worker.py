@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 import pytest
-from django.db import connection
+from django.db import connection, connections
 
 from d15n import schedule, step, workflow
 from d15n.models import Step, Workflow
@@ -70,6 +70,10 @@ def test_claim_is_exclusive_across_workers():
     def worker(index):
         barrier.wait()
         results.append([w.id for w in claim_new(3, f"worker-{index}")])
+        # Threads exit without releasing their thread-local connection;
+        # close it the way Worker._execute does, or it outlives the test
+        # and blocks the test database teardown.
+        connections.close_all()
 
     threads = [threading.Thread(target=worker, args=(i,)) for i in range(3)]
     for t in threads:
