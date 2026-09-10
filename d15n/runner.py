@@ -14,7 +14,7 @@ import time
 from django.db import transaction
 from django.utils import timezone
 
-from d15n import context, metrics, serde
+from d15n import context, metrics, serde, traces
 from d15n.context import Context
 from d15n.errors import (
     D15nError,
@@ -56,12 +56,17 @@ def run_step(ctx, func, args, kwargs, d15n_id=None):
         raise D15nError(f"step {name!r} arguments are not serializable: {exc}") from exc
 
     started = time.monotonic()
-    try:
-        result = func(*args, **kwargs)
-        error = None
-    except Exception as exc:
-        result = None
-        error = exc
+    with traces.span(name, {"d15n.step.id": step_id}, active=ctx.persistent) as step_span:
+        try:
+            result = func(*args, **kwargs)
+            error = None
+        except Exception as exc:
+            result = None
+            error = exc
+        if error is not None:
+            traces.mark_error(step_span, error)
+        else:
+            traces.mark_ok(step_span)
     duration = time.monotonic() - started
 
     if error is None:
@@ -133,47 +138,56 @@ def execute(workflow_id, draining=None):
     )
     context.set_current(ctx)
     try:
-        try:
-            result = func(*workflow.args)
-            error = None
-        except SimulatedCrash:
-            raise
-        except DrainOrphan:
-            return
-        except Terminal as t:
+        with traces.span(workflow.name, {"d15n.workflow.id": str(workflow.id)}) as span:
+            try:
+                result = func(*workflow.args)
+                error = None
+            except SimulatedCrash:
+                span.set_attribute("d15n.workflow.status", "running")
+                raise
+            except DrainOrphan:
+                span.set_attribute("d15n.workflow.status", "running")
+                return
+            except Terminal as t:
+                updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
+                    status=Workflow.Status.STOPPED,
+                    error=serde.encode_exception(t),
+                    completed_at=timezone.now(),
+                )
+                if updated:
+                    metrics.record_workflow_terminal(workflow.name, "stopped", time.monotonic() - started)
+                    span.set_attribute("d15n.workflow.status", "stopped")
+                    traces.mark_ok(span)
+                return
+            except Exception as exc:
+                result = None
+                error = exc
+
+            now = timezone.now()
+            if error is not None:
+                report_workflow_failure(error, workflow_id=workflow.id, workflow_name=workflow.name)
+                updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
+                    status=Workflow.Status.FAILED,
+                    error=serde.encode_exception(error),
+                    completed_at=now,
+                )
+                if updated:
+                    metrics.record_workflow_terminal(workflow.name, "failed", time.monotonic() - started)
+                    span.set_attribute("d15n.workflow.status", "failed")
+                    traces.mark_error(span, error)
+                return
+            try:
+                serde.dumps(result)
+            except (TypeError, ValueError) as exc:
+                raise D15nError(f"workflow result for {workflow.name!r} is not serializable: {exc}") from exc
             updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
-                status=Workflow.Status.STOPPED,
-                error=serde.encode_exception(t),
-                completed_at=timezone.now(),
+                status=Workflow.Status.COMPLETED,
+                result=result,
+                completed_at=now,
             )
             if updated:
-                metrics.record_workflow_terminal(workflow.name, "stopped", time.monotonic() - started)
-            return
-        except Exception as exc:
-            result = None
-            error = exc
+                metrics.record_workflow_terminal(workflow.name, "completed", time.monotonic() - started)
+                span.set_attribute("d15n.workflow.status", "completed")
+                traces.mark_ok(span)
     finally:
         context.clear_current()
-
-    now = timezone.now()
-    if error is not None:
-        report_workflow_failure(error, workflow_id=workflow.id, workflow_name=workflow.name)
-        updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
-            status=Workflow.Status.FAILED,
-            error=serde.encode_exception(error),
-            completed_at=now,
-        )
-        if updated:
-            metrics.record_workflow_terminal(workflow.name, "failed", time.monotonic() - started)
-        return
-    try:
-        serde.dumps(result)
-    except (TypeError, ValueError) as exc:
-        raise D15nError(f"workflow result for {workflow.name!r} is not serializable: {exc}") from exc
-    updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
-        status=Workflow.Status.COMPLETED,
-        result=result,
-        completed_at=now,
-    )
-    if updated:
-        metrics.record_workflow_terminal(workflow.name, "completed", time.monotonic() - started)

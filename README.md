@@ -328,6 +328,29 @@ does the same for a custom scrape handler.
 Labels are bounded to code-defined names (workflow and step function names,
 runner name), never to per-run identifiers.
 
+### OpenTelemetry
+
+With the extra installed, every workflow run is emitted as an
+OpenTelemetry trace on the global tracer `d15n`:
+
+```
+pip install "d15n[otel]"
+```
+
+- One span per run, named after the workflow, carrying `d15n.workflow.id`
+  and `d15n.workflow.status` (`completed`, `failed`, `stopped`, or
+  `running` when the run was left for the next worker).
+- One child span per step actually executed, named after the step,
+  carrying `d15n.step.id`. Steps served from the store on a replay are
+  not re-traced.
+- A `parallel` fork gets a span of its own; the branch steps nest under
+  it, across the worker threads.
+- A failed run or step ends its span in error with the exception
+  recorded. A `Terminal` stop is not an error.
+
+d15n only creates spans; the host application owns the `TracerProvider`
+and its exporters (for example OTLP), exactly as it owns Sentry.
+
 ### Semantics
 
 - Recovery is replay-based: on any claim the workflow body is re-run from the
@@ -408,4 +431,3 @@ charges the order again, or sends the e-mail again.
   - document storage limits on result / error size
   - document thread safety aspects and guarantees
 - visualization / UI, graph via AST parsing
-- workflow runs as otel traces

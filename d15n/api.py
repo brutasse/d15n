@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from django.db import connections
 
-from d15n import context, serde
+from d15n import context, serde, traces
 from d15n.context import Context
 from d15n.errors import D15nError, DrainOrphan, Terminal
 from d15n.models import Workflow
@@ -81,19 +81,20 @@ class _Failed:
         self.exc = exc
 
 
-def _run_branch(ctx, fork_id, index, branch):
-    context.set_current(ctx.branch(fork_id, index))
-    try:
+def _run_branch(ctx, fork_id, index, branch, otel_ctx=None):
+    with traces.attach_context(otel_ctx):
+        context.set_current(ctx.branch(fork_id, index))
         try:
-            return _Finished(branch())
-        except Exception as exc:
-            return _Failed(exc)
-    finally:
-        context.clear_current()
-        # Branches run on pool threads and Django connections are thread-local;
-        # release this thread's connection so it is not leaked when the
-        # pool thread exits.
-        connections.close_all()
+            try:
+                return _Finished(branch())
+            except Exception as exc:
+                return _Failed(exc)
+        finally:
+            context.clear_current()
+            # Branches run on pool threads and Django connections are
+            # thread-local; release this thread's connection so it is not
+            # leaked when the pool thread exits.
+            connections.close_all()
 
 
 def _as_branch(branch):
@@ -137,14 +138,16 @@ def parallel(*branches, d15n_id=None):
         owns_ctx = True
     try:
         fork_id = ctx.next_id(d15n_id)
-        with ThreadPoolExecutor(
-            max_workers=len(branches), thread_name_prefix="d15n-parallel"
-        ) as pool:
-            futures = [
-                pool.submit(_run_branch, ctx, fork_id, index, branch)
-                for index, branch in enumerate(branches)
-            ]
-            outputs = [future.result() for future in futures]
+        with traces.span("parallel", {"d15n.parallel.id": fork_id}, active=ctx.persistent):
+            fork_ctx = traces.capture_context() if ctx.persistent else None
+            with ThreadPoolExecutor(
+                max_workers=len(branches), thread_name_prefix="d15n-parallel"
+            ) as pool:
+                futures = [
+                    pool.submit(_run_branch, ctx, fork_id, index, branch, fork_ctx)
+                    for index, branch in enumerate(branches)
+                ]
+                outputs = [future.result() for future in futures]
     finally:
         if owns_ctx:
             context.clear_current()
