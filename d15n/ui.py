@@ -2,6 +2,12 @@
 
 Inline CSS and JS, no external assets. The view replaces __D15N_BASE__
 with the mount path so the page works under any prefix.
+
+The run detail renders steps as an Argo-workflows-style DAG: a pure
+layout function (in its own <script id="d15n-dag"> block, no DOM, so the
+test suite can run it under node) positions status-colored circles and
+wires fan-out/fan-in edges; the main script renders it as an SVG that
+supports wheel zoom, drag panning, and click-through step details.
 """
 
 PAGE = r"""<!doctype html>

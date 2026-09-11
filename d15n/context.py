@@ -76,6 +76,7 @@ class Context:
 
 
 def current():
+    """The execution context of the current thread, or None outside a run."""
     return getattr(_local, "ctx", None)
 
 

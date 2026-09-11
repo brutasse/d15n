@@ -1,9 +1,14 @@
 # D15n - Durable workflow execution for Django
 
-This library provides a syntax and execution environment for durable workflows
-and effecting actions to external systems while maintaining database
-consistency. Durable is meant as a guarantee of completion, not a guarantee of
-success. Robustness aspect like retries and backoff are user responsibilities.
+This library provides a syntax and execution environment for durable
+workflows and effecting actions to external systems while maintaining
+database consistency. Durable is meant as a guarantee of completion, not a
+guarantee of success. Robustness aspects like retries and backoff are user
+responsibilities.
+
+**Documentation:** <https://brutasse.github.io/d15n/> — quickstart, the
+execution model (replay, at-least-once), guides, deployment and operations,
+observability, and the full API reference.
 
 High-level workflow properties:
 
@@ -12,19 +17,17 @@ High-level workflow properties:
 - Ability to organize workflows along combinations of sequential or parallel
   steps.
 
-- Immediate start for scheduled workflows: a pool of workers ought to be ready
-  to pick up work as early as scheduled. Queue semantics are not a goal.
+- Immediate start for scheduled workflows: a pool of workers ought to be
+  ready to pick up work as early as scheduled. Queue semantics are not a
+  goal.
 
-- Transactional scheduling: workflows are meant to be scheduled along with the
-  other database changes that led to it being scheduled.
+- Transactional scheduling: workflows are meant to be scheduled along with
+  the other database changes that led to it being scheduled.
 
 - Results from previous steps available for consumption in the next steps,
-  both in the workflow body and from within a step (see Reading previous
-  step results).
+  both in the workflow body and from within a step.
 
-## Usage
-
-### Defining workflows and steps
+## Quickstart
 
 ```python
 from d15n import parallel, schedule, step, workflow
@@ -55,394 +58,18 @@ def provision_vm(args):
     return ip
 ```
 
-- `@workflow` functions are scheduled by name; their return value is the
-  persisted workflow result.
-- `@step` functions are units of work whose outcomes (result or exception)
-  are persisted in SQL.
-- Calling steps or workflows outside a running workflow runs them as plain
-  functions with no recording, so both are trivially unit-testable.
-- Step and workflow arguments and results must be JSON-serializable
-  (`datetime`, `date`, `timedelta`, `UUID`, `bytes` and `enum` are
-  supported). Store IDs, not model instances.
-- Step exceptions are persisted and re-raised on replay, so durable cleanup
-  is plain Python:
-
-```python
-@workflow
-def provision_vm(args):
-    vm_id = create_vm(args["name"], args["size"])
-    try:
-        ip = attach_ip(vm_id)
-    except Exception:
-        delete_vm(vm_id)  # a regular step; replay-safe
-        raise
-    return ip
-```
-
-`parallel(*branches)` takes zero-arg callables (usually lambdas calling one
-`@step`), runs them concurrently and returns their results in order. A branch
-may also be a list of zero-arg callables; it then runs its steps in order and
-returns a tuple of the branch's results. A later step in a sequence can read
-an earlier step's result from `context.current().outcomes` (see Reading
-previous step results). If any branch raises, the single error is re-raised
-(one failing branch) or an `ExceptionGroup` is raised (several).
-
-### Naming steps
-
-By default a step is identified by its position in the body (a dotpath like
-`3`, or `3.1.2` within a `parallel`). Positions shift when steps are added or
-removed, which breaks replay of in-flight workflows on changed code. To keep
-a step's identity stable, pass `d15n_id="..."` at the call site:
-
-```python
-@workflow
-def provision_vm(args):
-    vm_id = create_vm(args["name"], args["size"], d15n_id="create-vm")
-    ip, _sg = parallel(
-        lambda: attach_ip(vm_id, d15n_id="attach-ip"),
-        lambda: setup_security_group(vm_id, args["name"], d15n_id="setup-sg"),
-        d15n_id="fanout",
-    )
-    return ip
-```
-
-- The name becomes the step's dotpath segment (`create-vm`,
-  `fanout.0.attach-ip`). Unnamed steps still take the next position, so
-  naming existing steps shifts no other ids and a named step's id never
-  depends on position.
-- `d15n_id` must be unique per scope — one body, or one parallel branch —
-  and a step's name and a `parallel` fork's name share the scope. Reusing a
-  name raises `D15nError` before the step runs. The same name is fine in
-  different branches.
-- Names may be dynamic (`d15n_id=f"iter-{i}"` inside a loop).
-- Renaming a step gives it a new identity: the old record is orphaned and
-  the step re-executes on the next claim.
-- A name must be a non-empty string without dots or whitespace, not purely
-  numeric, and the full id must fit in 300 characters.
-
-### Reading previous step results
-
-A step can read the result of any step that has already completed in the
-current run, on both a fresh pass and a replay. The run keeps the shared
-outcome store current — each step's outcome is available as soon as it is
-recorded — so a step only ever needs to look at the current context:
-
-```python
-from d15n import context, step
-
-
-@step
-def create_vm(name, size):
-    return cloud_api.create_vm(name=name, size=size)
-
-
-@step
-def tag_vm():
-    vm_id = context.current().outcomes["create-vm"]["result"]
-    cloud_api.tag(vm_id, "provisioned")
-    return None
-
-
-@workflow
-def provision_vm(args):
-    create_vm(args["name"], args["size"], d15n_id="create-vm")
-    tag_vm()
-    return None
-```
-
-- `context.current().outcomes` maps each step id to a dict of `name`,
-  `status` (`"done"` or `"failed"`), `result` and `error`. A completed
-  step's value is `.outcomes[step_id]["result"]`; a failed step has
-  `result=None` and its encoded `error` set.
-- Steps are keyed by their step id: a top-level step is keyed by its
-  `d15n_id` (e.g. `"create-vm"`), an unnamed step by its positional dotpath
-  (`"1"`, `"2"`, ...). Name the steps you read, so the lookup is stable
-  across code edits.
-- A step sees every step that completed before it starts, including steps
-  recorded earlier in the same pass. It never sees its own result — that is
-  only recorded after the step returns.
-- Within a `parallel`, sibling branches run concurrently, so a branch must
-  not read a sibling's outcome: completion order is not guaranteed, and a
-  branch's step is keyed by its full dotpath (e.g. `"1.0.attach-ip"`). Read
-  sibling values from `parallel`'s return tuple instead; steps from an
-  earlier `parallel` or earlier sequential steps are safe to read.
-- Steps within one branch run in order, so a later step in a sequence branch
-  can read an earlier step's outcome from the same branch.
-- Treat `.outcomes` as read-only; the engine maintains it.
-
-### Scheduling
-
-```python
-from django.db import transaction
-from d15n import schedule
-
-with transaction.atomic():
-    order.save()
-    schedule(
-        provision_vm,
-        {"name": order.vm_name, "size": order.vm_size},
-        idempotency_key=f"order:{order.pk}",  # optional
-    )
-```
-
-Scheduling is a plain INSERT into the caller's transaction: on commit the
-workflow becomes claimable by workers, on rollback it is gone. With an
-`idempotency_key`, a repeated schedule with the same key returns the existing
-workflow instead of creating a new one.
-
-### Stopping a workflow for a known reason
-
-A step can stop the workflow deliberately, for a known condition, instead of
-letting it fail:
-
-```python
-from d15n import Terminal, step, workflow
-
-
-@step
-def upload(node_id, data):
-    result = storage.upload(node_id, data)
-    if result.node_full:
-        # Hand off to the caller: it picks another node and re-schedules.
-        raise Terminal("node-full", {"node_id": node_id})
-    return result
-
-
-@workflow
-def upload_to_node(args):
-    return upload(args["node"], args["data"])
-```
-
-Raising `Terminal(reason, payload)` ends the workflow in the `stopped` status
-before the next step: the step in flight runs to completion and is recorded,
-but no further step starts and the engine will not retry it. Unlike a
-workflow that `failed` on an unhandled step exception, a `stopped` workflow
-is not reported to Sentry. The caller reads `reason` and `payload` back from
-`run.error` (with `d15n.serde.decode_exception`) and takes over — for
-example, picking another node and calling `schedule` again.
-
-### Running workers
-
-```
-python manage.py d15n_worker --pool 8 --poll 0.2 --name d15n-runner-0
-```
-
-Workers require PostgreSQL. They poll for due workflows
-(`SELECT ... FOR UPDATE SKIP LOCKED`) and run them on a thread pool.
-
-Each worker runs under a stable **name** (default: the hostname). The name
-must be identical across restarts and unique among concurrently running
-workers — a k8s StatefulSet gives you both for free, since each pod has a
-fixed name. On startup a worker re-claims the workflows it was running when
-it last went away (matched by name) and resumes them by replay; in steady
-state it only claims new scheduled workflows.
-
-**Rollouts:** on SIGTERM (or SIGINT) a worker stops claiming and drains: the
-step in flight in each of its workflows runs to the end and is stored, but
-no new step starts, so each workflow is left running at a step boundary. The
-worker waits for the in-flight steps up to `--drain` seconds (default 30)
-and then exits, orphaning whatever did not finish; a worker coming up under
-the same name re-claims them and resumes by replay, picking up where the old
-one left off. Keep `--drain` consistent with the worker's supervisor: below
-the termination grace period (k8s `terminationGracePeriodSeconds`, systemd
-`TimeoutStopSec`) so the worker exits before it is killed, and above the
-longest-running step so every in-flight step gets to finish and be stored.
-`--drain 0` waits for in-flight work indefinitely.
-
-**Drawback:** recovery is by identity, not by time. A workflow is only ever
-re-claimed by a worker with the same name. If that name never comes back
-(the StatefulSet is scaled down or deleted), its in-flight workflows are
-orphaned — no other worker will steal them. Re-run them manually or point a
-worker at the orphaned name.
-
-### Sentry
-
-If `sentry-sdk` is installed and initialized in the host application
-(`sentry_sdk.init(dsn=...)`), every unhandled exception that fails a
-workflow run is reported to Sentry, with the workflow's name and id
-attached. Control-flow exceptions (`SimulatedCrash`, drain orphans) and
-workflows a step stopped with `Terminal` are never reported.
-
-```
-pip install "d15n[sentry]"
-```
-
-### Metrics
-
-d15n exposes Prometheus metrics for workflow processing health and runner
-health. Install the extra to enable them; without it, all metric recording is
-a no-op.
-
-```
-pip install "d15n[metrics]"
-```
-
-**Runner endpoint.** A worker can serve the metrics of its own process —
-runner health, pool utilization, and per-workflow execution — on an HTTP
-endpoint:
-
-```
-python manage.py d15n_worker --metrics-port 9117
-```
-
-Prometheus then scrapes `http://<runner>:9117/`. The endpoint is
-unauthenticated; keep it behind network segmentation. `--metrics-bind`
-controls the interface (default `0.0.0.0`, for in-cluster scraping).
-
-**Host application.** All d15n collectors register in the default
-`prometheus_client` registry, so a metrics endpoint in the host application
-already serves in-process d15n metrics (for example from an embedded worker)
-with no configuration. To also expose the queue state computed from the
-database, mount the provided view:
-
-```python
-from d15n import views
-
-urlpatterns = [
-    path("d15n/metrics", views.metrics_view),
-]
-```
-
-It refreshes the queue gauges on every scrape. `d15n.metrics.update_queue_gauges()`
-does the same for a custom scrape handler.
-
-**Metrics.**
-
-- `d15n_workflow_runs_total{workflow, status}` — runs ended, by final status
-  (`completed`, `failed`, `stopped`)
-- `d15n_workflow_duration_seconds{workflow, status}` — wall time from claim
-  to terminal state
-- `d15n_step_runs_total{workflow, step, status}` — step executions, by outcome
-  (`done`, `failed`)
-- `d15n_step_duration_seconds{workflow, step}` — step execution time
-- `d15n_worker_pool_size{runner}`, `d15n_worker_inflight{runner}` — pool
-  utilization
-- `d15n_worker_claims_total{runner}`, `d15n_worker_orphans_total{runner}` —
-  workflows claimed; workflows orphaned when the drain deadline expired
-- `d15n_worker_started_at_seconds{runner}` — worker start time (uptime)
-- `d15n_workflows_pending`, `d15n_workflows_running` — queue depth from the
-  database
-- `d15n_workflows_oldest_pending_age_seconds` — age of the oldest scheduled
-  workflow
-
-Labels are bounded to code-defined names (workflow and step function names,
-runner name), never to per-run identifiers.
-
-### OpenTelemetry
-
-With the extra installed, every workflow run is emitted as an
-OpenTelemetry trace on the global tracer `d15n`:
-
-```
-pip install "d15n[otel]"
-```
-
-- One span per run, named after the workflow, carrying `d15n.workflow.id`
-  and `d15n.workflow.status` (`completed`, `failed`, `stopped`, or
-  `running` when the run was left for the next worker).
-- One child span per step actually executed, named after the step,
-  carrying `d15n.step.id`. Steps served from the store on a replay are
-  not re-traced.
-- A `parallel` fork gets a span of its own; the branch steps nest under
-  it, across the worker threads.
-- A failed run or step ends its span in error with the exception
-  recorded. A `Terminal` stop is not an error.
-
-d15n only creates spans; the host application owns the `TracerProvider`
-and its exporters (for example OTLP), exactly as it owns Sentry.
-
-### UI
-
-d15n ships a self-contained single-page UI — inline CSS and JS, no CDN
-assets — that shows workflow runs, live progress, step outputs and runners.
-Mount it in the host application:
-
-```python
-urlpatterns = [
-    path("d15n/", include("d15n.urls")),
-]
-```
-
-- `/` — the UI page
-- `/api/runs` — recent runs as JSON; `?status=` filters by run status
-- `/api/run/<id>` — one run: the annotated step graph, plus the recorded
-  steps with their args, results and errors
-- `/api/stream` — Server-Sent Events: a runs snapshot re-sent on every
-  change to the database. Clients whose proxies do not stream fall back to
-  polling `/api/runs`.
-
-For a workflow whose body is a straight sequence of steps and `parallel`
-forks, the UI renders the intended structure of the workflow — parsed from
-the source via the AST — with each step's live status overlaid on it:
-recorded steps show their outcome, the next eligible step of a running
-workflow is shown in flight, the rest are pending. Workflows the parser
-cannot prove (control flow, loops, dynamic step ids, calls through local
-names) fall back to a flat view built from the recorded step ids.
-
-Runners are the distinct `claimed_by` of the running workflows, with their
-in-flight counts; an idle runner has nothing in flight and does not appear.
-
-Like the metrics endpoint, the UI is unauthenticated: keep the mount behind
-network segmentation or your own authentication.
-
-### Semantics
-
-- Recovery is replay-based: on any claim the workflow body is re-run from the
-  top, recorded step outcomes are served from the database, and execution
-  resumes at the first unrecorded step. Code between step calls therefore
-  re-runs on every resume and must be deterministic; the engine records each
-  step's qualified name and fails the workflow loudly if the body diverges.
-  A step's identity is its dotpath: its position for unnamed calls, or its
-  `d15n_id` name (see Naming steps).
-- Steps are at-least-once: if a worker dies after a step's side effect but
-  before its record is written, the step re-runs on recovery. Make side
-  effects idempotent or keyed. Retries and backoff are your responsibility.
-
-### Idempotent or keyed side effects
-
-A step that re-runs after a crash performs its side effect twice. There are
-two ways to make that harmless:
-
-- Idempotent: the effect is safe to repeat, so the second execution leaves
-  the system in the same state as the first.
-
-  ```python
-  @step
-  def tag_vm(vm_id):
-      cloud_api.set_tags(vm_id, {"team": "data"})  # re-run writes the same tags
-  ```
-
-  Setting a value, deleting something (the `delete_vm` cleanup above), or
-  converging SQL (`INSERT ... ON CONFLICT DO UPDATE`,
-  `CREATE INDEX IF NOT EXISTS`) are idempotent: run the line once or twice,
-  the end state is the same.
-
-- Keyed: the effect is not safe to repeat, so it is sent with a stable key
-  that the receiving system uses to recognize and suppress the duplicate.
-
-  ```python
-  @step
-  def charge_order(order_id, amount):
-      return billing_api.charge(
-          order_id, amount, idempotency_key=f"charge:{order_id}"
-      )
-  ```
-
-  If the worker dies after the charge is settled but before the step is
-  recorded, recovery re-runs the step with the same key and the billing API
-  returns the original charge instead of charging again. The same pattern
-  covers HTTP `Idempotency-Key` headers, uniquely named resources, or
-  `INSERT ... ON CONFLICT DO NOTHING` on a unique column.
-
-The key must be identical on every replay of the same step. Derive it from
-the workflow's arguments when the key names a logical operation (one charge
-per order), or from the run id when it names a single attempt
-(`d15n.context.current().workflow_id`). Timestamps and `uuid4()` do not
-work: a re-run computes a new key, and the duplicate passes.
-
-A plain `cloud_api.create_vm(name, size)`, an unkeyed charge, or an unkeyed
-e-mail are neither idempotent nor keyed: each re-run provisions another VM,
-charges the order again, or sends the e-mail again.
+1. `pip install d15n`, add `"d15n"` to `INSTALLED_APPS`, then
+   `python manage.py migrate`.
+2. `schedule(provision_vm, {...})` inside your transaction: on commit the
+   workflow becomes claimable, on rollback it is gone.
+3. Run a worker (PostgreSQL required):
+   `python manage.py d15n_worker --pool 8 --poll 0.2 --name d15n-runner-0`.
+   The name must be stable across restarts and unique among running workers.
+
+The details — step identity and naming, reading previous results, `Terminal`
+stops, idempotent or keyed side effects, rollouts and orphaned workflows,
+metrics, Sentry, traces, the UI, storage limits, thread safety — are all in
+the [documentation](https://brutasse.github.io/d15n/).
 
 ## Development
 
@@ -451,6 +78,7 @@ charges the order again, or sends the e-mail again.
   container on a free port and removes it afterwards. Point it at your own
   server with the `D15N_TEST_PG_PORT` env var (override the image with
   `D15N_TEST_PG_IMAGE`, default `postgres:16`).
+- `uv run zensical serve` — preview the documentation.
 - Tests can simulate a worker process dying between a step's side effect and
   its record: set `d15n.runner.fault` to a handler `fault(ctx, step_id)`
   that raises `d15n.errors.SimulatedCrash`.
@@ -459,9 +87,3 @@ charges the order again, or sends the e-mail again.
 
 - CI/CD on gha
   - test matrix with mariadb
-- docs:
-  - prettier, multi-page and more detailed docs with zensical (quick start,
-    config, deploy, operations)
-  - document storage limits on result / error size
-  - document thread safety aspects and guarantees
-

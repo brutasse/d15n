@@ -92,6 +92,12 @@ def resume_own(limit, name):
 
 
 class Worker:
+    """Claim due workflows and execute them on a thread pool.
+
+    See the running section of the documentation for the claim loop, the
+    stable-name contract, and the SIGTERM drain behavior.
+    """
+
     def __init__(
         self, pool_size=4, poll=0.2, name=None, drain=30, metrics_port=0, metrics_bind="0.0.0.0"
     ):

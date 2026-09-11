@@ -1,0 +1,70 @@
+# Configuration
+
+d15n has no settings module and reads no environment variables. It is
+configured in three places:
+
+1. **Your Django settings** — the app and the database.
+2. **The worker command line** — everything a runner does.
+3. **Optional extras** — observability integrations, enabled by installing a
+   package.
+
+## Django
+
+Add `"d15n"` to `INSTALLED_APPS` and run migrations (see the
+[quickstart](getting-started.md)).
+
+The library itself works on any database backend your project uses:
+`scheduling` and the models are plain Django. **Workers require
+PostgreSQL**, because claiming uses `SELECT ... FOR UPDATE SKIP LOCKED`; a
+worker on another backend raises a `RuntimeError` at the first claim.
+
+## Worker flags
+
+`python manage.py d15n_worker [flags]`:
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--pool N` | `4` | Thread pool size: the maximum number of workflows this worker runs at once. |
+| `--poll S` | `0.2` | Seconds between claim polls. Bounds how early a due workflow can be picked up. |
+| `--name NAME` | hostname | Stable runner identity. Identical across restarts, unique among concurrently running workers. See [workers](running/workers.md). |
+| `--drain S` | `30` | Seconds to wait for in-flight steps after SIGTERM/SIGINT, at step boundaries, before orphaning them and exiting. `0` waits indefinitely. See [rollouts](running/deploying.md#rollouts-sigterm-drain). |
+| `--metrics-port N` | `0` (off) | Serve this worker's Prometheus metrics on the given TCP port. Requires the `metrics` extra. |
+| `--metrics-bind ADDR` | `0.0.0.0` | Interface to bind the metrics endpoint to (in-cluster scraping). |
+
+## Optional extras
+
+All three degrade to no-ops when not installed: every call site checks for
+the package before doing anything.
+
+| Extra | Install | Enables |
+| --- | --- | --- |
+| `sentry` | `pip install "d15n[sentry]"` | Unhandled workflow failures reported to Sentry, with the workflow's name and id attached. See [Sentry](observability/alerting-tracing.md#sentry). |
+| `metrics` | `pip install "d15n[metrics]"` | Prometheus metrics, the per-runner metrics endpoint, and the host-application metrics view. See [metrics](observability/metrics.md). |
+| `otel` | `pip install "d15n[otel]"` | OpenTelemetry spans for runs and executed steps on the global tracer `d15n`. See [traces](observability/alerting-tracing.md#opentelemetry). |
+
+## URL mounts
+
+Nothing is mounted for you. Add what you need:
+
+```python
+# urls.py
+from django.urls import include, path
+from d15n import views
+
+urlpatterns = [
+    path("d15n/", include("d15n.urls")),          # the UI
+    path("d15n/metrics", views.metrics_view),     # Prometheus endpoint with DB-derived queue gauges
+]
+```
+
+The UI is optional; so is the metrics view (without it, in-process d15n
+metrics are still served from your existing `/metrics`, and the per-runner
+endpoint is available via `--metrics-port`). Both endpoints are
+**unauthenticated** — keep them behind network segmentation or your own
+authentication.
+
+## Logging
+
+Worker events (orphaned workflows, runs that crashed outside the runner) are
+logged through the `d15n` logger. Configure it like any other in your
+application; there are no d15n-specific logging settings.

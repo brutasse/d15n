@@ -79,6 +79,7 @@ def _decode(obj):
 
 
 def encode_exception(exc):
+    """Encode an exception into a JSON-serializable dict for storage."""
     payload = {
         "type": f"{type(exc).__module__}.{type(exc).__qualname__}",
         "message": str(exc),
@@ -91,6 +92,11 @@ def encode_exception(exc):
 
 
 def decode_exception(payload):
+    """Decode a stored exception dict into an exception instance.
+
+    Returns the original exception type when it is importable, otherwise a
+    StepFailure carrying the stored message.
+    """
     if not isinstance(payload, dict):
         return StepFailure(f"step failed (unrecognized failure record: {payload!r})")
     message = payload.get("message", "")

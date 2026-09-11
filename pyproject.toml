@@ -19,6 +19,8 @@ dev = [
     "pytest-django>=4.9",
     "prometheus-client>=0.20",
     "opentelemetry-sdk>=1.20",
+    "zensical>=0.0.60",
+    "mkdocstrings-python>=2.0.8",
 ]
 
 [build-system]

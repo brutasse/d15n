@@ -17,6 +17,13 @@ _STEP = "step"
 
 
 def workflow(func):
+    """Mark a function as a durable workflow.
+
+    The function takes the arguments passed to ``schedule()`` and combines
+    ``step`` calls, sequentially or through ``parallel()``. Workflows are
+    scheduled by name; the return value is the persisted workflow result.
+    Called outside a running workflow, it runs as a plain function.
+    """
     if not callable(func):
         raise TypeError("@workflow must decorate a function")
 
@@ -29,6 +36,14 @@ def workflow(func):
 
 
 def step(func):
+    """Mark a function as a durable step.
+
+    Inside a running workflow, the call is recorded: the outcome (result or
+    exception) is persisted in SQL and served from the store on replay, so
+    the function body only runs for unrecorded steps. Called outside a
+    running workflow, it runs as a plain function with no recording. Pass
+    ``d15n_id=...`` at the call site for a stable step identity.
+    """
     if not callable(func):
         raise TypeError("@step must decorate a function")
 

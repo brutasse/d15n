@@ -1,0 +1,120 @@
+[project]
+site_url = "https://brutasse.github.io/d15n/"
+site_name = "d15n"
+site_description = "Durable workflow execution for Django"
+site_author = "Bruno Renié"
+copyright = "&copy; 2026 Exoscale"
+
+repo_url = "https://github.com/brutasse/d15n"
+repo_name = "brutasse/d15n"
+edit_uri = "edit/main/docs/"
+
+nav = [
+  { "Home" = "index.md" },
+  { "Quickstart" = "getting-started.md" },
+  { "Configuration" = "configuration.md" },
+  { "How it works" = [
+    "concepts/index.md",
+    "concepts/steps.md",
+    "concepts/identity.md",
+    "concepts/parallel.md",
+    "concepts/results.md",
+    "concepts/errors.md",
+  ] },
+  { "Guides" = [
+    "guides/scheduling.md",
+    "guides/side-effects.md",
+  ] },
+  { "Running" = [
+    "running/workers.md",
+    "running/deploying.md",
+  ] },
+  { "Observability" = [
+    "observability/ui.md",
+    "observability/metrics.md",
+    "observability/alerting-tracing.md",
+  ] },
+  { "Reference" = [
+    "reference/api.md",
+    "reference/data-model.md",
+    "reference/thread-safety.md",
+  ] },
+  { "Development" = ["development/testing.md"] },
+]
+
+[project.theme]
+language = "en"
+features = [
+  "content.action.edit",
+  "content.code.annotate",
+  "content.code.copy",
+  "content.code.select",
+  "content.footnote.tooltips",
+  "content.tabs.link",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/brutasse/d15n"
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["."]
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+toc.permalink = true
+pymdownx.arithmatex.generic = true
+pymdownx.betterem = {}
+pymdownx.caret = {}
+pymdownx.details = {}
+pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
+pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+pymdownx.highlight.anchor_linenums = true
+pymdownx.highlight.line_spans = "__span"
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.keys = {}
+pymdownx.magiclink = {}
+pymdownx.mark = {}
+pymdownx.smartsymbols = {}
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tabbed.alternate_style = true
+pymdownx.tabbed.combine_header_slug = true
+pymdownx.tasklist.custom_checkbox = true
+pymdownx.tilde = {}
