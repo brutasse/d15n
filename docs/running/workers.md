@@ -23,9 +23,10 @@ new while the pool is full. There is no queue in front of it: a scheduled
 workflow is picked up as early as `--poll` allows, by whatever worker has
 capacity.
 
-Workers **require PostgreSQL** — the claim relies on
-`FOR UPDATE SKIP LOCKED`. On another backend the first claim raises
-`RuntimeError`.
+Workers run on **PostgreSQL and MariaDB**. On PostgreSQL the claim uses
+`FOR UPDATE SKIP LOCKED`, so concurrent workers never block each other; on
+MariaDB it uses a plain `FOR UPDATE`, so claims stay exclusive but serialize
+while a batch is being locked.
 
 ## The name
 

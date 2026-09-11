@@ -7,14 +7,18 @@ uv sync
 uv run pytest
 ```
 
-The suite needs PostgreSQL. By default it starts a **throwaway container**
-(`postgres:16`) on a free port and removes it afterwards. To use your own
-server instead:
+The suite runs on PostgreSQL by default; set `EVERYSTEP_TEST_DB=mariadb` to
+run it against MariaDB. It starts a **throwaway container** (`postgres:16`,
+or `mariadb:11` for MariaDB) on a free port and removes it afterwards. To
+use your own server instead:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `EVERYSTEP_TEST_PG_PORT` | *(container)* | Point the suite at an existing server on this port. |
-| `EVERYSTEP_TEST_PG_IMAGE` | `postgres:16` | Override the container image. |
+| `EVERYSTEP_TEST_DB` | `postgres` | Backend to run against: `postgres` or `mariadb`. |
+| `EVERYSTEP_TEST_PG_PORT` | *(container)* | Point the suite at an existing Postgres server on this port. |
+| `EVERYSTEP_TEST_PG_IMAGE` | `postgres:16` | Override the Postgres container image. |
+| `EVERYSTEP_TEST_MARIADB_PORT` | *(container)* | Point the suite at an existing MariaDB server on this port. |
+| `EVERYSTEP_TEST_MARIADB_IMAGE` | `mariadb:11` | Override the MariaDB container image. |
 
 Most tests run under `@pytest.mark.django_db`, which wraps each test in a
 transaction that is rolled back. Tests that need real commits — claiming,
@@ -62,7 +66,7 @@ name resumes the run.
 | --- | --- |
 | `everystep/` | The library: `api` (the public callables), `runner` (replay engine), `worker` (claim loop), `context`, `serde`, `registry`, `graph` (static step graph for the UI), `models`, `metrics`, `traces`, `telemetry` (Sentry), `views`, `ui`. |
 | `demo/` | A runnable Django app with sample workflows and a seeder command — a playground for the UI. |
-| `tests/` | The test suite, its settings, and the Postgres container plugin. |
+| `tests/` | The test suite, its settings, and the database container plugin. |
 | `docs/` | This documentation, built with Zensical. |
 
 ## Building the docs

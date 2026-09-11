@@ -71,8 +71,8 @@ lifecycle.
 Correctness between workers comes from the **database**, not from in-process
 state:
 
-- **Claims** use `SELECT ... FOR UPDATE SKIP LOCKED`, so concurrent workers
-  take disjoint sets of rows;
+- **Claims** use `SELECT ... FOR UPDATE SKIP LOCKED` on PostgreSQL (a plain
+  `FOR UPDATE` on MariaDB), so concurrent workers take disjoint sets of rows;
 - **Recovery** matches on the worker name — a run is re-claimed only by a
   worker with the same `claimed_by`;
 - **Terminal transitions** are conditional updates from `running` only, so a

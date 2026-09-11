@@ -14,9 +14,11 @@ Add `"everystep"` to `INSTALLED_APPS` and run migrations (see the
 [quickstart](getting-started.md)).
 
 The library itself works on any database backend your project uses:
-`scheduling` and the models are plain Django. **Workers require
-PostgreSQL**, because claiming uses `SELECT ... FOR UPDATE SKIP LOCKED`; a
-worker on another backend raises a `RuntimeError` at the first claim.
+`scheduling` and the models are plain Django. **Workers run on PostgreSQL and
+MariaDB.** On PostgreSQL, claiming uses `SELECT ... FOR UPDATE SKIP LOCKED`,
+so concurrent workers claim disjoint batches without blocking. MariaDB has no
+SKIP LOCKED, so the claim falls back to a plain `FOR UPDATE`: claims stay
+exclusive but serialize while a batch is being locked.
 
 ## Worker flags
 

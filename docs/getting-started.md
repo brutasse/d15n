@@ -4,8 +4,8 @@ Requirements:
 
 - Python 3.12 or later
 - Django 5.2 or later
-- PostgreSQL — required for workers; scheduling itself works on any database
-  backend your project uses
+- PostgreSQL or MariaDB — required for workers; scheduling itself works on
+  any database backend your project uses
 
 ## Install
 

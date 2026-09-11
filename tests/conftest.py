@@ -1,10 +1,10 @@
 import pytest
 
-from tests import pgcontainer
+from tests import dbcontainer
 
 
 def pytest_sessionfinish(session, exitstatus):
-    pgcontainer.stop()
+    dbcontainer.stop()
 
 
 @pytest.fixture(autouse=True)

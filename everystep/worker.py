@@ -31,13 +31,20 @@ from everystep.telemetry import report_workflow_failure
 logger = logging.getLogger("everystep")
 
 
-def _check_vendor():
-    if connection.vendor != "postgresql":
-        raise RuntimeError("everystep workers require PostgreSQL (FOR UPDATE SKIP LOCKED)")
+def _lock_clause():
+    """Row-locking clause for the claim SELECT, chosen by backend.
+
+    PostgreSQL uses SKIP LOCKED so concurrent workers grab disjoint batches
+    without blocking each other. Other backends (MariaDB) have no SKIP
+    LOCKED, so a plain FOR UPDATE is used: claims stay exclusive, they just
+    serialize while a batch is being locked.
+    """
+    if connection.vendor == "postgresql":
+        return "FOR UPDATE SKIP LOCKED"
+    return "FOR UPDATE"
 
 
 def _select_ids(where, params, limit):
-    _check_vendor()
     table = Workflow._meta.db_table
     with connection.cursor() as cursor:
         cursor.execute(
@@ -47,7 +54,7 @@ def _select_ids(where, params, limit):
             WHERE {where}
             ORDER BY created_at
             LIMIT %s
-            FOR UPDATE SKIP LOCKED
+            {_lock_clause()}
             """,
             [*params, limit],
         )
@@ -57,8 +64,10 @@ def _select_ids(where, params, limit):
 def claim_new(limit, name):
     """Claim up to `limit` scheduled workflows for this runner.
 
-    Uses SELECT ... FOR UPDATE SKIP LOCKED so concurrent runners claim
-    disjoint sets. Requires PostgreSQL.
+    Uses SELECT ... FOR UPDATE SKIP LOCKED on PostgreSQL so concurrent
+    runners claim disjoint sets without blocking; on other backends (e.g.
+    MariaDB) a plain FOR UPDATE keeps claims exclusive but serializes them
+    while a batch is being locked.
     """
     with transaction.atomic():
         ids = _select_ids(

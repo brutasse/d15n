@@ -62,7 +62,7 @@ def provision_vm(args):
    `python manage.py migrate`.
 2. `schedule(provision_vm, {...})` inside your transaction: on commit the
    workflow becomes claimable, on rollback it is gone.
-3. Run a worker (PostgreSQL required):
+3. Run a worker (PostgreSQL or MariaDB):
    `python manage.py everystep_worker --pool 8 --poll 0.2 --name everystep-runner-0`.
    The name must be stable across restarts and unique among running workers.
 
@@ -82,8 +82,3 @@ the [documentation](https://brutasse.github.io/everystep/).
 - Tests can simulate a worker process dying between a step's side effect and
   its record: set `everystep.runner.fault` to a handler `fault(ctx, step_id)`
   that raises `everystep.errors.SimulatedCrash`.
-
-## Roadmap
-
-- CI/CD on gha
-  - test matrix with mariadb

@@ -41,7 +41,9 @@ UPDATE everystep_workflow SET status = 'running', claimed_by = '<name>' WHERE id
 `FOR UPDATE SKIP LOCKED` means concurrent workers claim **disjoint** sets:
 two workers polling the same table never take the same row. There is no queue
 and no backlog — a scheduled workflow is claimed as early as `--poll`
-allows, by any available worker.
+allows, by any available worker. On MariaDB the claim uses a plain
+`FOR UPDATE` (no SKIP LOCKED): claims are still disjoint, they just
+serialize while a batch is being locked.
 
 ## Execution is replay
 

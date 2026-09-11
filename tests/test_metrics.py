@@ -190,6 +190,7 @@ def test_replayed_step_is_not_recounted():
 
 def test_worker_records_pool_claims_and_inflight(monkeypatch):
     monkeypatch.setenv("EVERYSTEP_TEST_STEP_SLEEP", "1")
+    slow_steps.SLEEPER_STARTED.clear()
     schedule(sleeper_flow, {})
     worker = Worker(pool_size=2, poll=0.05, name="m-w", drain=5)
     thread = threading.Thread(target=worker.run, daemon=True)
@@ -197,10 +198,11 @@ def test_worker_records_pool_claims_and_inflight(monkeypatch):
     try:
         deadline = time.time() + 30
         while time.time() < deadline:
-            if _value(metrics._worker_inflight, runner="m-w") == 1:
+            if _value(metrics._worker_inflight, runner="m-w") == 1 and slow_steps.SLEEPER_STARTED.is_set():
                 break
             time.sleep(0.05)
         assert _value(metrics._worker_inflight, runner="m-w") == 1
+        assert slow_steps.SLEEPER_STARTED.is_set()
     finally:
         worker.stop()
     thread.join(timeout=15)

@@ -1,5 +1,19 @@
 import os
 
+DB = os.environ.get("EVERYSTEP_TEST_DB", "postgres")
+
+if DB == "mariadb":
+    import pymysql
+
+    pymysql.install_as_MySQLdb()
+    _DEFAULTS = {"ENGINE": "django.db.backends.mysql", "USER": "root", "PORT": "3306"}
+else:
+    _DEFAULTS = {
+        "ENGINE": "django.db.backends.postgresql",
+        "USER": "postgres",
+        "PORT": "5432",
+    }
+
 SECRET_KEY = "everystep-tests"
 
 INSTALLED_APPS = [
@@ -10,12 +24,12 @@ INSTALLED_APPS = [
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "everystep",
-        "USER": "postgres",
-        "PASSWORD": "postgres",
-        "HOST": "127.0.0.1",
-        "PORT": os.environ.get("EVERYSTEP_TEST_PG_PORT", "5432"),
+        **_DEFAULTS,
+        "NAME": os.environ.get("EVERYSTEP_TEST_DB_NAME", "everystep"),
+        "USER": os.environ.get("EVERYSTEP_TEST_DB_USER", _DEFAULTS["USER"]),
+        "PASSWORD": os.environ.get("EVERYSTEP_TEST_DB_PASSWORD", "postgres"),
+        "HOST": os.environ.get("EVERYSTEP_TEST_DB_HOST", "127.0.0.1"),
+        "PORT": os.environ.get("EVERYSTEP_TEST_DB_PORT", _DEFAULTS["PORT"]),
     }
 }
 
