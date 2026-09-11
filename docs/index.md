@@ -1,8 +1,8 @@
-# d15n
+# everystep
 
 Durable workflow execution for Django.
 
-d15n provides a syntax and an execution environment for durable workflows:
+everystep provides a syntax and an execution environment for durable workflows:
 multi-step processes that effect actions on external systems while keeping
 your database consistent. A workflow is plain Python — a function that calls
 `@step` functions, sequentially or through `parallel()` forks. Runs are
@@ -34,7 +34,7 @@ what to do about at-least-once execution.
   already completed in the run, both in the workflow body and from within a
   step.
 
-## What d15n is not
+## What everystep is not
 
 - Not a task queue: there is no backlog to drain, no priority, no rate
   limiting. Work is picked up as early as it is due.

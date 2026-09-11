@@ -46,7 +46,7 @@ and re-runs `delete_vm`.
 
 ## Decoding stored exceptions
 
-`d15n.serde.decode_exception(payload)` turns a stored exception dict back
+`everystep.serde.decode_exception(payload)` turns a stored exception dict back
 into an exception instance: the original type when importable, otherwise a
 `StepFailure`. This is how a caller reads a failed run or a `stopped` run
 back out of `run.error`.
@@ -57,7 +57,7 @@ A step can stop the workflow deliberately, for a known condition, instead of
 letting it fail:
 
 ```python
-from d15n import Terminal, step
+from everystep import Terminal, step
 
 
 @step
@@ -82,8 +82,8 @@ Raising `Terminal(reason, payload)`:
 The caller takes over by decoding `run.error`:
 
 ```python
-from d15n import serde
-from d15n.errors import Terminal
+from everystep import serde
+from everystep.errors import Terminal
 
 t = serde.decode_exception(run.error)
 if isinstance(t, Terminal) and t.reason == "node-full":
@@ -94,11 +94,11 @@ if isinstance(t, Terminal) and t.reason == "node-full":
 `Terminal` inside a `parallel` branch stops the whole run: it is raised
 ahead of any `ExceptionGroup` the fork would build.
 
-## d15n's own exception types
+## everystep's own exception types
 
 | Exception | Meaning |
 | --- | --- |
-| `D15nError` | Base class for d15n errors: bad `d15n_id`, non-serializable arguments or results, duplicate names in a scope. |
+| `EverystepError` | Base class for everystep errors: bad `everystep_id`, non-serializable arguments or results, duplicate names in a scope. |
 | `WorkflowCodeError` | The body at a recorded step id no longer calls the recorded function: the code diverged from an in-flight run. The run fails loudly instead of executing the wrong work. |
 | `StepFailure` | A replayed recorded failure whose original exception type is unavailable. Carries the stored message. |
 | `SimulatedCrash` | Raised only from the test `fault` hook to simulate a process death. Never raised in production code paths. |

@@ -1,16 +1,16 @@
 # Thread safety and guarantees
 
-d15n executes workflows on a thread pool and `parallel` branches on further
+everystep executes workflows on a thread pool and `parallel` branches on further
 threads. This page states what is shared, what is isolated, and what the
 guarantees rest on.
 
 ## Isolated per workflow
 
 - Each claimed workflow executes on **its own pool thread** of the worker.
-- The execution context (`d15n.context.Context`) lives in **thread-local
+- The execution context (`everystep.context.Context`) lives in **thread-local
   storage**: the engine sets it on the thread that runs the body and clears
   it on exit. A step sees the context of the thread it is running on, via
-  `d15n.context.current()`.
+  `everystep.context.current()`.
 - Each in-flight workflow has **its own `Context` instance** — its own
   step-id counter and prefix state. Two workflows never share context state,
   no matter how many threads the worker runs.
@@ -38,7 +38,7 @@ written concurrently:
 - reads are plain dict lookups.
 
 This is safe under CPython because dict operations are atomic under the GIL.
-d15n holds **no locks of its own**; that is the whole synchronization story
+everystep holds **no locks of its own**; that is the whole synchronization story
 for in-process state. If you rely on it, keep running CPython.
 
 ## Database connections
@@ -54,16 +54,16 @@ them:
 You do not need to manage connections from step code; the worker handles the
 lifecycle.
 
-## What d15n does not synchronize
+## What everystep does not synchronize
 
-- **Step functions.** d15n does not serialize step calls. Steps from
+- **Step functions.** everystep does not serialize step calls. Steps from
   different workflows (within one worker's pool) and steps from different
   `parallel` branches execute **concurrently**. A step that touches shared
   resources — a global cache, an HTTP session, a file — must be safe for
   concurrent invocation with its own synchronization, exactly as any
-  concurrent Python code. d15n gives you no help and no protection here.
+  concurrent Python code. everystep gives you no help and no protection here.
 - **Code you write in workflow bodies** runs on the workflow's thread and
-  does not race with anything inside d15n; it may only observe other
+  does not race with anything inside everystep; it may only observe other
   workflows' side effects through the external systems they touch.
 
 ## Across processes
@@ -80,7 +80,7 @@ state:
 - **Idempotency keys** and **step identities** are enforced by unique
   constraints.
 
-## Calling d15n from your own threads
+## Calling everystep from your own threads
 
 - A `@step` called on a thread **without** a context (outside a running
   workflow) executes as a plain function with no recording.
@@ -91,6 +91,6 @@ state:
 
 ## Test hook
 
-`d15n.runner.fault` is a process-wide global, consulted between a step's
+`everystep.runner.fault` is a process-wide global, consulted between a step's
 side effect and its record. It exists for the test suite (see
 [testing](../development/testing.md)); leave it `None` in production.

@@ -11,10 +11,10 @@ import uuid
 import pytest
 from django.test import Client
 
-import d15n.views as views
-from d15n import schedule, step, ui, workflow
-from d15n.models import Workflow
-from d15n.runner import execute
+import everystep.views as views
+from everystep import schedule, step, ui, workflow
+from everystep.models import Workflow
+from everystep.runner import execute
 from tests.helpers import run_to_completion
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -52,12 +52,12 @@ def _claim(wf):
 
 
 def test_ui_page():
-    resp = Client().get("/d15n/")
+    resp = Client().get("/everystep/")
     assert resp.status_code == 200
     assert resp["Content-Type"].startswith("text/html")
     html = resp.content.decode()
-    assert "__D15N_BASE__" not in html
-    assert 'const BASE = "/d15n/";' in html
+    assert "__EVERYSTEP_BASE__" not in html
+    assert 'const BASE = "/everystep/";' in html
     assert 'id="run-by-id"' in html
 
 
@@ -65,7 +65,7 @@ def test_runs_list():
     done = run_to_completion(u_chain, {"x": "1"})
     running = _claim(schedule(u_chain, {"x": "2"}))
     scheduled = schedule(u_chain, {"x": "3"})
-    data = Client().get("/d15n/api/runs").json()
+    data = Client().get("/everystep/api/runs").json()
     by_id = {r["id"]: r for r in data["runs"]}
     assert by_id[str(done.id)]["status"] == Workflow.Status.COMPLETED
     assert by_id[str(done.id)]["steps"] == {"total": 2, "done": 2, "failed": 0}
@@ -84,16 +84,16 @@ def test_runs_list():
 def test_runs_list_status_filter():
     run_to_completion(u_chain, {"x": "1"})
     schedule(u_chain, {"x": "2"})
-    data = Client().get("/d15n/api/runs?status=completed").json()
+    data = Client().get("/everystep/api/runs?status=completed").json()
     assert data["runs"]
     assert all(r["status"] == Workflow.Status.COMPLETED for r in data["runs"])
-    data = Client().get("/d15n/api/runs?status=nonsense").json()
+    data = Client().get("/everystep/api/runs?status=nonsense").json()
     assert {r["status"] for r in data["runs"]} <= set(Workflow.Status.values)
 
 
 def test_run_detail():
     run = run_to_completion(u_chain, {"x": "1"})
-    data = Client().get(f"/d15n/api/run/{run.id}").json()
+    data = Client().get(f"/everystep/api/run/{run.id}").json()
     assert data["run"]["status"] == Workflow.Status.COMPLETED
     assert data["run"]["args"] == [{"x": "1"}]
     assert data["run"]["result"] == "ab1"
@@ -123,7 +123,7 @@ def test_run_detail_failed_step():
     execute(wf.id)
     wf.refresh_from_db()
     assert wf.status == Workflow.Status.FAILED
-    data = Client().get(f"/d15n/api/run/{wf.id}").json()
+    data = Client().get(f"/everystep/api/run/{wf.id}").json()
     g = data["graph"]
     assert g["supported"] is True
     assert g["failed"] == 1
@@ -134,7 +134,7 @@ def test_run_detail_failed_step():
 
 def test_run_detail_flat():
     run = run_to_completion(u_loop, {})
-    data = Client().get(f"/d15n/api/run/{run.id}").json()
+    data = Client().get(f"/everystep/api/run/{run.id}").json()
     g = data["graph"]
     assert g["supported"] is False
     assert g["reason"]
@@ -143,7 +143,7 @@ def test_run_detail_flat():
 
 
 def test_run_detail_404():
-    resp = Client().get(f"/d15n/api/run/{uuid.uuid4()}")
+    resp = Client().get(f"/everystep/api/run/{uuid.uuid4()}")
     assert resp.status_code == 404
 
 
@@ -154,15 +154,15 @@ def test_run_detail_beyond_list_limit(monkeypatch):
     old = run_to_completion(u_chain, {"x": "old"})
     run_to_completion(u_chain, {"x": "mid"})
     run_to_completion(u_chain, {"x": "new"})
-    list_ids = {r["id"] for r in Client().get("/d15n/api/runs").json()["runs"]}
+    list_ids = {r["id"] for r in Client().get("/everystep/api/runs").json()["runs"]}
     assert str(old.id) not in list_ids
-    data = Client().get(f"/d15n/api/run/{old.id}").json()
+    data = Client().get(f"/everystep/api/run/{old.id}").json()
     assert data["run"]["id"] == str(old.id)
     assert data["run"]["result"] == "abold"
 
 
 def _dag_block_js():
-    m = re.search(r'<script id="d15n-dag">(.*?)</script>', ui.PAGE, re.S)
+    m = re.search(r'<script id="everystep-dag">(.*?)</script>', ui.PAGE, re.S)
     assert m, "pure DAG block missing from page"
     return m.group(1)
 
@@ -270,7 +270,7 @@ def test_page_script_blocks_parse():
     """Both script blocks are syntactically valid JS."""
     if shutil.which("node") is None:
         pytest.skip("node not available")
-    for pattern in (r'<script id="d15n-dag">(.*?)</script>', r'<script>\n(.*)</script>'):
+    for pattern in (r'<script id="everystep-dag">(.*?)</script>', r'<script>\n(.*)</script>'):
         m = re.search(pattern, ui.PAGE, re.S)
         assert m, f"script block missing: {pattern}"
         fd, path = tempfile.mkstemp(suffix=".js")
@@ -292,7 +292,7 @@ def _sse_json(chunk):
 def test_stream_sse(monkeypatch):
     monkeypatch.setattr(views, "_SSE_POLL_INTERVAL", 0.05)
     existing = run_to_completion(u_chain, {"x": "1"})
-    resp = Client().get("/d15n/api/stream")
+    resp = Client().get("/everystep/api/stream")
     assert resp.status_code == 200
     assert resp["Content-Type"].startswith("text/event-stream")
     assert resp["X-Accel-Buffering"] == "no"
@@ -309,7 +309,7 @@ def test_stream_shows_step_progress(monkeypatch):
     """A running workflow's step counts advance over the stream."""
     monkeypatch.setattr(views, "_SSE_POLL_INTERVAL", 0.05)
     wf = _claim(schedule(u_chain, {"x": "1"}))
-    resp = Client().get("/d15n/api/stream")
+    resp = Client().get("/everystep/api/stream")
     chunks = iter(resp.streaming_content)
     first = _sse_json(next(chunks))
     row = next(r for r in first["runs"] if r["id"] == str(wf.id))

@@ -9,10 +9,10 @@ import socket
 import subprocess
 import time
 
-CONTAINER = "d15n-test-pg"
-IMAGE = os.environ.get("D15N_TEST_PG_IMAGE", "postgres:16")
+CONTAINER = "everystep-test-pg"
+IMAGE = os.environ.get("EVERYSTEP_TEST_PG_IMAGE", "postgres:16")
 
-own_container = not bool(os.environ.get("D15N_TEST_PG_PORT"))
+own_container = not bool(os.environ.get("EVERYSTEP_TEST_PG_PORT"))
 
 
 def _free_port():
@@ -57,7 +57,7 @@ def _start_container():
 
 
 if own_container:
-    os.environ["D15N_TEST_PG_PORT"] = str(_start_container())
+    os.environ["EVERYSTEP_TEST_PG_PORT"] = str(_start_container())
 
 
 def stop():

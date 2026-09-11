@@ -13,8 +13,8 @@ server instead:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `D15N_TEST_PG_PORT` | *(container)* | Point the suite at an existing server on this port. |
-| `D15N_TEST_PG_IMAGE` | `postgres:16` | Override the container image. |
+| `EVERYSTEP_TEST_PG_PORT` | *(container)* | Point the suite at an existing server on this port. |
+| `EVERYSTEP_TEST_PG_IMAGE` | `postgres:16` | Override the container image. |
 
 Most tests run under `@pytest.mark.django_db`, which wraps each test in a
 transaction that is rolled back. Tests that need real commits — claiming,
@@ -22,13 +22,13 @@ recording, the worker loop — add `transaction=True`.
 
 ## Simulating crashes: the fault hook
 
-The interesting behaviours of d15n happen in the window between a step's
+The interesting behaviours of everystep happen in the window between a step's
 side effect and its record. The test suite simulates a worker process dying
 there with a fault hook:
 
 ```python
-from d15n import runner
-from d15n.errors import SimulatedCrash
+from everystep import runner
+from everystep.errors import SimulatedCrash
 
 def fault(ctx, step_id):
     if step_id == "2":
@@ -60,7 +60,7 @@ name resumes the run.
 
 | Path | What |
 | --- | --- |
-| `d15n/` | The library: `api` (the public callables), `runner` (replay engine), `worker` (claim loop), `context`, `serde`, `registry`, `graph` (static step graph for the UI), `models`, `metrics`, `traces`, `telemetry` (Sentry), `views`, `ui`. |
+| `everystep/` | The library: `api` (the public callables), `runner` (replay engine), `worker` (claim loop), `context`, `serde`, `registry`, `graph` (static step graph for the UI), `models`, `metrics`, `traces`, `telemetry` (Sentry), `views`, `ui`. |
 | `demo/` | A runnable Django app with sample workflows and a seeder command — a playground for the UI. |
 | `tests/` | The test suite, its settings, and the Postgres container plugin. |
 | `docs/` | This documentation, built with Zensical. |

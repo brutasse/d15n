@@ -1,6 +1,6 @@
 """Prometheus metrics for workflow processing and runner health.
 
-Requires the optional `metrics` extra (pip install "d15n[metrics]"). Without
+Requires the optional `metrics` extra (pip install "everystep[metrics]"). Without
 prometheus_client, every function in this module is a no-op.
 
 All collectors register in the default prometheus_client registry, so a host
@@ -27,7 +27,7 @@ _collectors = []
 
 
 def _define():
-    """(Re)create all d15n collectors.
+    """(Re)create all everystep collectors.
 
     Called at import time; tests unregister `metrics._collectors` from the
     registry and call this again for a clean state.
@@ -38,60 +38,60 @@ def _define():
     global _workflows_oldest_pending_age, _collectors
 
     _workflow_runs = prometheus_client.Counter(
-        "d15n_workflow_runs",
+        "everystep_workflow_runs",
         "Workflow runs ended, by final status.",
         labelnames=("workflow", "status"),
     )
     _workflow_duration = prometheus_client.Histogram(
-        "d15n_workflow_duration_seconds",
+        "everystep_workflow_duration_seconds",
         "Wall time from claim to terminal state, by final status.",
         labelnames=("workflow", "status"),
     )
     _step_runs = prometheus_client.Counter(
-        "d15n_step_runs",
+        "everystep_step_runs",
         "Step executions, by outcome.",
         labelnames=("workflow", "step", "status"),
     )
     _step_duration = prometheus_client.Histogram(
-        "d15n_step_duration_seconds",
+        "everystep_step_duration_seconds",
         "Step execution time.",
         labelnames=("workflow", "step"),
     )
     _worker_pool_size = prometheus_client.Gauge(
-        "d15n_worker_pool_size",
+        "everystep_worker_pool_size",
         "Worker thread pool size.",
         labelnames=("runner",),
     )
     _worker_inflight = prometheus_client.Gauge(
-        "d15n_worker_inflight",
+        "everystep_worker_inflight",
         "Workflows currently in flight in the worker.",
         labelnames=("runner",),
     )
     _worker_claims = prometheus_client.Counter(
-        "d15n_worker_claims",
+        "everystep_worker_claims",
         "Workflows claimed by the worker.",
         labelnames=("runner",),
     )
     _worker_orphans = prometheus_client.Counter(
-        "d15n_worker_orphans",
+        "everystep_worker_orphans",
         "Workflows orphaned when the drain deadline expired.",
         labelnames=("runner",),
     )
     _worker_started_at = prometheus_client.Gauge(
-        "d15n_worker_started_at_seconds",
+        "everystep_worker_started_at_seconds",
         "Unix time the worker started.",
         labelnames=("runner",),
     )
     _workflows_pending = prometheus_client.Gauge(
-        "d15n_workflows_pending",
+        "everystep_workflows_pending",
         "Workflows scheduled and waiting for a claim.",
     )
     _workflows_running = prometheus_client.Gauge(
-        "d15n_workflows_running",
+        "everystep_workflows_running",
         "Workflows currently running.",
     )
     _workflows_oldest_pending_age = prometheus_client.Gauge(
-        "d15n_workflows_oldest_pending_age_seconds",
+        "everystep_workflows_oldest_pending_age_seconds",
         "Age of the oldest scheduled workflow.",
     )
     _collectors = [
@@ -160,7 +160,7 @@ def update_queue_gauges():
     from django.db.models import Count, Min
     from django.utils import timezone
 
-    from d15n.models import Workflow
+    from everystep.models import Workflow
 
     scheduled = Workflow.objects.filter(status=Workflow.Status.SCHEDULED).aggregate(
         count=Count("id"), oldest=Min("created_at")
@@ -193,7 +193,7 @@ def start_http_server(port, addr):
     if not enabled:
         raise RuntimeError(
             "prometheus metrics are not available; install the metrics extra "
-            'with pip install "d15n[metrics]"'
+            'with pip install "everystep[metrics]"'
         )
     server, _thread = prometheus_client.start_http_server(port, addr)
     return server

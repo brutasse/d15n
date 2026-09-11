@@ -1,4 +1,4 @@
-# D15n - Durable workflow execution for Django
+# Everystep - Durable workflow execution for Django
 
 This library provides a syntax and execution environment for durable
 workflows and effecting actions to external systems while maintaining
@@ -6,7 +6,7 @@ database consistency. Durable is meant as a guarantee of completion, not a
 guarantee of success. Robustness aspects like retries and backoff are user
 responsibilities.
 
-**Documentation:** <https://brutasse.github.io/d15n/> — quickstart, the
+**Documentation:** <https://brutasse.github.io/everystep/> — quickstart, the
 execution model (replay, at-least-once), guides, deployment and operations,
 observability, and the full API reference.
 
@@ -30,7 +30,7 @@ High-level workflow properties:
 ## Quickstart
 
 ```python
-from d15n import parallel, schedule, step, workflow
+from everystep import parallel, schedule, step, workflow
 
 
 @step
@@ -58,30 +58,30 @@ def provision_vm(args):
     return ip
 ```
 
-1. `pip install d15n`, add `"d15n"` to `INSTALLED_APPS`, then
+1. `pip install everystep`, add `"everystep"` to `INSTALLED_APPS`, then
    `python manage.py migrate`.
 2. `schedule(provision_vm, {...})` inside your transaction: on commit the
    workflow becomes claimable, on rollback it is gone.
 3. Run a worker (PostgreSQL required):
-   `python manage.py d15n_worker --pool 8 --poll 0.2 --name d15n-runner-0`.
+   `python manage.py everystep_worker --pool 8 --poll 0.2 --name everystep-runner-0`.
    The name must be stable across restarts and unique among running workers.
 
 The details — step identity and naming, reading previous results, `Terminal`
 stops, idempotent or keyed side effects, rollouts and orphaned workflows,
 metrics, Sentry, traces, the UI, storage limits, thread safety — are all in
-the [documentation](https://brutasse.github.io/d15n/).
+the [documentation](https://brutasse.github.io/everystep/).
 
 ## Development
 
 - `uv sync` — create the venv and install dependencies.
 - `uv run pytest` — run the test suite. It starts a throwaway Postgres
   container on a free port and removes it afterwards. Point it at your own
-  server with the `D15N_TEST_PG_PORT` env var (override the image with
-  `D15N_TEST_PG_IMAGE`, default `postgres:16`).
+  server with the `EVERYSTEP_TEST_PG_PORT` env var (override the image with
+  `EVERYSTEP_TEST_PG_IMAGE`, default `postgres:16`).
 - `uv run zensical serve` — preview the documentation.
 - Tests can simulate a worker process dying between a step's side effect and
-  its record: set `d15n.runner.fault` to a handler `fault(ctx, step_id)`
-  that raises `d15n.errors.SimulatedCrash`.
+  its record: set `everystep.runner.fault` to a handler `fault(ctx, step_id)`
+  that raises `everystep.errors.SimulatedCrash`.
 
 ## Roadmap
 

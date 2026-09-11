@@ -4,11 +4,11 @@ from datetime import datetime
 
 import pytest
 
-from d15n import runner
-from d15n import schedule, step, workflow
-from d15n.errors import SimulatedCrash
-from d15n.models import Step, Workflow
-from d15n.runner import execute
+from everystep import runner
+from everystep import schedule, step, workflow
+from everystep.errors import SimulatedCrash
+from everystep.models import Step, Workflow
+from everystep.runner import execute
 from tests.helpers import claim_next, crash_on, re_claim
 
 pytestmark = pytest.mark.django_db

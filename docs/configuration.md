@@ -1,6 +1,6 @@
 # Configuration
 
-d15n has no settings module and reads no environment variables. It is
+everystep has no settings module and reads no environment variables. It is
 configured in three places:
 
 1. **Your Django settings** — the app and the database.
@@ -10,7 +10,7 @@ configured in three places:
 
 ## Django
 
-Add `"d15n"` to `INSTALLED_APPS` and run migrations (see the
+Add `"everystep"` to `INSTALLED_APPS` and run migrations (see the
 [quickstart](getting-started.md)).
 
 The library itself works on any database backend your project uses:
@@ -20,7 +20,7 @@ worker on another backend raises a `RuntimeError` at the first claim.
 
 ## Worker flags
 
-`python manage.py d15n_worker [flags]`:
+`python manage.py everystep_worker [flags]`:
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
@@ -38,9 +38,9 @@ the package before doing anything.
 
 | Extra | Install | Enables |
 | --- | --- | --- |
-| `sentry` | `pip install "d15n[sentry]"` | Unhandled workflow failures reported to Sentry, with the workflow's name and id attached. See [Sentry](observability/alerting-tracing.md#sentry). |
-| `metrics` | `pip install "d15n[metrics]"` | Prometheus metrics, the per-runner metrics endpoint, and the host-application metrics view. See [metrics](observability/metrics.md). |
-| `otel` | `pip install "d15n[otel]"` | OpenTelemetry spans for runs and executed steps on the global tracer `d15n`. See [traces](observability/alerting-tracing.md#opentelemetry). |
+| `sentry` | `pip install "everystep[sentry]"` | Unhandled workflow failures reported to Sentry, with the workflow's name and id attached. See [Sentry](observability/alerting-tracing.md#sentry). |
+| `metrics` | `pip install "everystep[metrics]"` | Prometheus metrics, the per-runner metrics endpoint, and the host-application metrics view. See [metrics](observability/metrics.md). |
+| `otel` | `pip install "everystep[otel]"` | OpenTelemetry spans for runs and executed steps on the global tracer `everystep`. See [traces](observability/alerting-tracing.md#opentelemetry). |
 
 ## URL mounts
 
@@ -49,15 +49,15 @@ Nothing is mounted for you. Add what you need:
 ```python
 # urls.py
 from django.urls import include, path
-from d15n import views
+from everystep import views
 
 urlpatterns = [
-    path("d15n/", include("d15n.urls")),          # the UI
-    path("d15n/metrics", views.metrics_view),     # Prometheus endpoint with DB-derived queue gauges
+    path("everystep/", include("everystep.urls")),          # the UI
+    path("everystep/metrics", views.metrics_view),     # Prometheus endpoint with DB-derived queue gauges
 ]
 ```
 
-The UI is optional; so is the metrics view (without it, in-process d15n
+The UI is optional; so is the metrics view (without it, in-process everystep
 metrics are still served from your existing `/metrics`, and the per-runner
 endpoint is available via `--metrics-port`). Both endpoints are
 **unauthenticated** — keep them behind network segmentation or your own
@@ -66,5 +66,5 @@ authentication.
 ## Logging
 
 Worker events (orphaned workflows, runs that crashed outside the runner) are
-logged through the `d15n` logger. Configure it like any other in your
-application; there are no d15n-specific logging settings.
+logged through the `everystep` logger. Configure it like any other in your
+application; there are no everystep-specific logging settings.

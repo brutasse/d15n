@@ -1,6 +1,6 @@
 from django.urls import path
 
-from d15n import views
+from everystep import views
 
 urlpatterns = [
     path("", views.ui_view),

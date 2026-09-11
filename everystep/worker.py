@@ -22,18 +22,18 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from django.db import connection, connections, transaction
 from django.utils import timezone
 
-from d15n import metrics, serde
-from d15n.errors import DrainOrphan, SimulatedCrash, Terminal
-from d15n.models import Workflow
-from d15n.runner import execute
-from d15n.telemetry import report_workflow_failure
+from everystep import metrics, serde
+from everystep.errors import DrainOrphan, SimulatedCrash, Terminal
+from everystep.models import Workflow
+from everystep.runner import execute
+from everystep.telemetry import report_workflow_failure
 
-logger = logging.getLogger("d15n")
+logger = logging.getLogger("everystep")
 
 
 def _check_vendor():
     if connection.vendor != "postgresql":
-        raise RuntimeError("d15n workers require PostgreSQL (FOR UPDATE SKIP LOCKED)")
+        raise RuntimeError("everystep workers require PostgreSQL (FOR UPDATE SKIP LOCKED)")
 
 
 def _select_ids(where, params, limit):
@@ -110,7 +110,7 @@ class Worker:
         self._stop = threading.Event()
         self._draining = threading.Event()
         self._futures = []
-        self._executor = ThreadPoolExecutor(max_workers=pool_size, thread_name_prefix="d15n-w")
+        self._executor = ThreadPoolExecutor(max_workers=pool_size, thread_name_prefix="everystep-w")
         self._metrics_server = None
 
     def stop(self):
@@ -138,7 +138,7 @@ class Worker:
             if leftovers:
                 metrics.record_orphans(self.name, len(leftovers))
                 logger.warning(
-                    "d15n worker: drain deadline of %ss expired with %d workflow(s) still "
+                    "everystep worker: drain deadline of %ss expired with %d workflow(s) still "
                     "in flight; they are orphaned and will be picked up by the next worker "
                     "named %r",
                     self.drain, len(leftovers), self.name,
@@ -188,7 +188,7 @@ class Worker:
             if future.done():
                 exc = future.exception()
                 if exc is not None:
-                    logger.exception("d15n worker: unexpected worker failure: %s", exc)
+                    logger.exception("everystep worker: unexpected worker failure: %s", exc)
             else:
                 pending.append(future)
         self._futures = pending
@@ -198,9 +198,9 @@ class Worker:
         try:
             execute(workflow.id, draining=self._draining)
         except Workflow.DoesNotExist:
-            logger.warning("d15n worker: workflow %s no longer exists", workflow.id)
+            logger.warning("everystep worker: workflow %s no longer exists", workflow.id)
         except Exception as exc:
-            logger.exception("d15n worker: workflow %s crashed outside the runner", workflow.id)
+            logger.exception("everystep worker: workflow %s crashed outside the runner", workflow.id)
             report_workflow_failure(exc, workflow_id=workflow.id)
             try:
                 updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
@@ -213,7 +213,7 @@ class Worker:
                         workflow.name, "failed", time.monotonic() - started
                     )
             except Exception:
-                logger.exception("d15n worker: could not mark workflow %s failed", workflow.id)
+                logger.exception("everystep worker: could not mark workflow %s failed", workflow.id)
         finally:
             # Pool threads are long-lived and Django connections are
             # thread-local, so release this thread's connection to avoid

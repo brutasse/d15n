@@ -9,7 +9,7 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(autouse=True)
 def _reset_fault():
-    from d15n import runner
+    from everystep import runner
 
     runner.fault = None
     yield

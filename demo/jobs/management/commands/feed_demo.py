@@ -3,7 +3,7 @@ import time
 
 from django.core.management.base import BaseCommand
 
-from d15n import schedule
+from everystep import schedule
 
 from jobs import workflows
 

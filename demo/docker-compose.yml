@@ -43,7 +43,7 @@ services:
       [
         "sh",
         "entrypoint.sh",
-        "python manage.py d15n_worker --name demo-worker --poll 0.2 --pool 4",
+        "python manage.py everystep_worker --name demo-worker --poll 0.2 --pool 4",
       ]
 
   seeder:

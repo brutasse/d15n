@@ -3,7 +3,7 @@
 `@step` marks a function as a unit of durable work. Calling it inside a
 running workflow:
 
-1. resolves its **step id** (position or `d15n_id` — see
+1. resolves its **step id** (position or `everystep_id` — see
    [identity](identity.md));
 2. if the id is already recorded, returns the stored result or re-raises the
    stored exception, without executing the function;
@@ -30,12 +30,12 @@ context, no recording, no validation. The same goes for `@workflow`
 functions and `parallel()` (which still runs its branches concurrently).
 This is what makes steps trivially unit-testable.
 
-The `d15n_id` keyword is popped and ignored in that case.
+The `everystep_id` keyword is popped and ignored in that case.
 
 ## Serialization
 
 Arguments and results must be JSON-serializable. Beyond plain JSON types,
-d15n encodes and decodes these for you:
+everystep encodes and decodes these for you:
 
 | Type | Storage |
 | --- | --- |
@@ -52,7 +52,7 @@ Values come back as the original types when read from the store, from
 Two timing details:
 
 - **Arguments are validated before the function runs.** A step called with a
-  non-serializable argument fails with `D15nError` without executing.
+  non-serializable argument fails with `EverystepError` without executing.
 - **The result is validated after the function returns.** If the result is
   not serializable, the failure surfaces after the side effect has happened
   and before the record is written — on resume, the step re-runs.

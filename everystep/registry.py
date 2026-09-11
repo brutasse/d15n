@@ -41,7 +41,7 @@ class Registry:
             return func
         obj = import_dotted(name)
         if obj is None:
-            raise LookupError(f"d15n cannot resolve workflow function {name!r}")
+            raise LookupError(f"everystep cannot resolve workflow function {name!r}")
         return obj
 
 

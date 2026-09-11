@@ -25,25 +25,25 @@ step at the top renumbers every step after it, and the next replay of an
 in-flight workflow finds a different function at each recorded id and fails
 with `WorkflowCodeError`.
 
-## Named ids: `d15n_id`
+## Named ids: `everystep_id`
 
-Pass `d15n_id="..."` at the call site to give a step a stable identity:
+Pass `everystep_id="..."` at the call site to give a step a stable identity:
 
 ```python
 @workflow
 def provision_vm(args):
-    vm_id = create_vm(args["name"], args["size"], d15n_id="create-vm")
+    vm_id = create_vm(args["name"], args["size"], everystep_id="create-vm")
     ip, _sg = parallel(
-        lambda: attach_ip(vm_id, d15n_id="attach-ip"),
-        lambda: setup_security_group(vm_id, args["name"], d15n_id="setup-sg"),
-        d15n_id="fanout",
+        lambda: attach_ip(vm_id, everystep_id="attach-ip"),
+        lambda: setup_security_group(vm_id, args["name"], everystep_id="setup-sg"),
+        everystep_id="fanout",
     )
     return ip
 ```
 
 - The name becomes the step's dotpath segment: `create-vm`, and
   `fanout.0.attach-ip` inside the fork. `parallel()` itself accepts
-  `d15n_id`, so the fork's branches get stable ids too.
+  `everystep_id`, so the fork's branches get stable ids too.
 - A named step **still consumes a position**, so naming (or un-naming) a
   step shifts no other id, and a named step's id never depends on position.
   Inserting unnamed steps around named ones leaves the named ids alone.
@@ -56,16 +56,16 @@ A name must be **unique per scope**. A scope is one workflow body, or one
 `parallel` branch — and a step's name and a `parallel` fork's name share the
 same scope.
 
-- `create_vm(d15n_id="x")` twice in one body → `D15nError`, raised before
+- `create_vm(everystep_id="x")` twice in one body → `EverystepError`, raised before
   the second step runs (no side effect).
-- A step named `"fanout"` and a `parallel(..., d15n_id="fanout")` in the
-  same body → `D15nError`.
+- A step named `"fanout"` and a `parallel(..., everystep_id="fanout")` in the
+  same body → `EverystepError`.
 - The **same name in different branches is fine**: they produce different
   ids (`fanout.0.x`, `fanout.1.x`).
 
 ## Validation
 
-A `d15n_id` must be:
+A `everystep_id` must be:
 
 - a non-empty string;
 - without dots (dots separate scopes);
@@ -73,9 +73,9 @@ A `d15n_id` must be:
 - not purely numeric (names must not look like positions);
 - short enough that the full dotpath fits in 300 characters.
 
-Violations raise `D15nError` before the step runs.
+Violations raise `EverystepError` before the step runs.
 
-Names may be **dynamic** — `d15n_id=f"iter-{i}"` inside a loop — as long as
+Names may be **dynamic** — `everystep_id=f"iter-{i}"` inside a loop — as long as
 the sequence is deterministic across replays, which loops over `args`
 derived values are.
 
@@ -83,5 +83,5 @@ derived values are.
 
 Ids are the keys of `context.current().outcomes` (see
 [reading results](results.md)): a top-level named step is keyed by its
-`d15n_id`, an unnamed one by its positional dotpath (`"1"`, `"2"`, ...). Name
+`everystep_id`, an unnamed one by its positional dotpath (`"1"`, `"2"`, ...). Name
 the steps you read, so the lookup survives edits to the body.

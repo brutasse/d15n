@@ -5,7 +5,7 @@ unhandled exception that fails a workflow run is reported to Sentry with the
 workflow's identity attached. Without sentry-sdk, reporting is a no-op.
 """
 
-from d15n.errors import DrainOrphan, SimulatedCrash, Terminal
+from everystep.errors import DrainOrphan, SimulatedCrash, Terminal
 
 
 def report_workflow_failure(exc, *, workflow_id, workflow_name=None):
@@ -21,8 +21,8 @@ def report_workflow_failure(exc, *, workflow_id, workflow_name=None):
     except ImportError:
         return
     with sentry_sdk.isolation_scope() as scope:
-        d15n_context = {"workflow_id": str(workflow_id)}
+        everystep_context = {"workflow_id": str(workflow_id)}
         if workflow_name is not None:
-            d15n_context["workflow"] = workflow_name
-        scope.set_context("d15n", d15n_context)
+            everystep_context["workflow"] = workflow_name
+        scope.set_context("everystep", everystep_context)
         sentry_sdk.capture_exception(exc)

@@ -10,15 +10,15 @@ Requirements:
 ## Install
 
 ```
-pip install d15n
+pip install everystep
 ```
 
 Optional extras, each a no-op unless installed:
 
 ```
-pip install "d15n[sentry]"     # report failed runs to Sentry
-pip install "d15n[metrics]"    # Prometheus metrics
-pip install "d15n[otel]"       # OpenTelemetry traces
+pip install "everystep[sentry]"     # report failed runs to Sentry
+pip install "everystep[metrics]"    # Prometheus metrics
+pip install "everystep[otel]"       # OpenTelemetry traces
 ```
 
 ## Add the Django app
@@ -27,7 +27,7 @@ pip install "d15n[otel]"       # OpenTelemetry traces
 # settings.py
 INSTALLED_APPS = [
     # ...
-    "d15n",
+    "everystep",
 ]
 ```
 
@@ -37,14 +37,14 @@ Then migrate:
 python manage.py migrate
 ```
 
-This creates the `d15n_workflow` and `d15n_step` tables — see the
+This creates the `everystep_workflow` and `everystep_step` tables — see the
 [data model](reference/data-model.md) for what they hold.
 
 ## Define a workflow
 
 ```python
 # provision.py
-from d15n import parallel, step, workflow
+from everystep import parallel, step, workflow
 
 
 @step
@@ -90,7 +90,7 @@ Scheduling is a plain insert into your current transaction:
 
 ```python
 from django.db import transaction
-from d15n import schedule
+from everystep import schedule
 from provision import provision_vm
 
 with transaction.atomic():
@@ -105,7 +105,7 @@ details.
 ## Run a worker
 
 ```
-python manage.py d15n_worker --pool 8 --poll 0.2 --name d15n-runner-0
+python manage.py everystep_worker --pool 8 --poll 0.2 --name everystep-runner-0
 ```
 
 The worker polls for due workflows, runs them on a thread pool, and replays
@@ -123,7 +123,7 @@ Mount the bundled UI in your application:
 from django.urls import include, path
 
 urlpatterns = [
-    path("d15n/", include("d15n.urls")),
+    path("everystep/", include("everystep.urls")),
 ]
 ```
 

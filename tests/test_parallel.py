@@ -2,11 +2,11 @@ import time
 
 import pytest
 
-from d15n import parallel, runner
-from d15n import schedule, step, workflow
-from d15n.errors import SimulatedCrash
-from d15n.models import Step, Workflow
-from d15n.runner import execute
+from everystep import parallel, runner
+from everystep import schedule, step, workflow
+from everystep.errors import SimulatedCrash
+from everystep.models import Step, Workflow
+from everystep.runner import execute
 from tests.helpers import claim_next, crash_on, re_claim, run_to_completion
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -260,13 +260,13 @@ def test_sequence_branch_recovers_after_crash():
 @workflow
 def named_seq(args):
     parallel(
-        [lambda: seq_first(d15n_id="first"), lambda: seq_second(d15n_id="second")],
-        d15n_id="seq",
+        [lambda: seq_first(everystep_id="first"), lambda: seq_second(everystep_id="second")],
+        everystep_id="seq",
     )
     return None
 
 
-def test_d15n_id_inside_sequence_branch():
+def test_everystep_id_inside_sequence_branch():
     wf = run_to_completion(named_seq, {})
     assert {s.step_id for s in Step.objects.filter(workflow_id=wf.id)} == {
         "seq.0.first",
@@ -277,20 +277,20 @@ def test_d15n_id_inside_sequence_branch():
 @workflow
 def named_seq_dup(args):
     parallel(
-        [lambda: seq_first(d15n_id="dup"), lambda: seq_second(d15n_id="dup")],
-        d15n_id="seq",
+        [lambda: seq_first(everystep_id="dup"), lambda: seq_second(everystep_id="dup")],
+        everystep_id="seq",
     )
     return "unreached"
 
 
-def test_duplicate_d15n_id_in_sequence_fails_loudly():
+def test_duplicate_everystep_id_in_sequence_fails_loudly():
     wf = schedule(named_seq_dup, {})
     claim_next()
     execute(wf.id)
     wf.refresh_from_db()
 
     assert wf.status == Workflow.Status.FAILED
-    assert wf.error["type"].endswith("D15nError")
+    assert wf.error["type"].endswith("EverystepError")
     assert "already used in this scope" in wf.error["message"]
     # The second call was rejected before its side effect ran.
     assert CALLS == ["seq_first"]

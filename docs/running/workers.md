@@ -4,7 +4,7 @@ A worker is a long-lived process that claims due workflows and executes them
 on a thread pool:
 
 ```
-python manage.py d15n_worker --pool 8 --poll 0.2 --name d15n-runner-0
+python manage.py everystep_worker --pool 8 --poll 0.2 --name everystep-runner-0
 ```
 
 ## The loop
@@ -64,11 +64,11 @@ terminal transitions — is described in
 
 ## Embedded workers
 
-`d15n.worker.Worker` is a plain class; you can run a worker inside a host
+`everystep.worker.Worker` is a plain class; you can run a worker inside a host
 process instead of a standalone management command:
 
 ```python
-from d15n.worker import Worker
+from everystep.worker import Worker
 
 worker = Worker(pool_size=4, poll=0.2, name="embedded")
 thread = threading.Thread(target=worker.run, daemon=True)

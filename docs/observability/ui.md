@@ -1,6 +1,6 @@
 # UI
 
-d15n ships a self-contained single-page UI — inline CSS and JS, no CDN
+everystep ships a self-contained single-page UI — inline CSS and JS, no CDN
 assets — that shows workflow runs, live progress, step outputs, and the
 runners that hold work. Mount it in your application:
 
@@ -9,7 +9,7 @@ runners that hold work. Mount it in your application:
 from django.urls import include, path
 
 urlpatterns = [
-    path("d15n/", include("d15n.urls")),
+    path("everystep/", include("everystep.urls")),
 ]
 ```
 

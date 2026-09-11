@@ -1,5 +1,5 @@
 [project]
-name = "d15n"
+name = "everystep"
 version = "0.1.0"
 description = "Durable workflow execution for Django"
 requires-python = ">=3.12"

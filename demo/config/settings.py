@@ -1,13 +1,13 @@
 import os
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "d15n-demo-insecure")
+SECRET_KEY = os.environ.get("SECRET_KEY", "everystep-demo-insecure")
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
-    "d15n",
+    "everystep",
     "jobs",
 ]
 

@@ -9,10 +9,10 @@ from pathlib import Path
 import pytest
 from django.db import connection, connections
 
-from d15n import schedule, step, workflow
-from d15n.models import Step, Workflow
-from d15n.runner import execute
-from d15n.worker import Worker, claim_new, resume_own
+from everystep import schedule, step, workflow
+from everystep.models import Step, Workflow
+from everystep.runner import execute
+from everystep.worker import Worker, claim_new, resume_own
 from tests import slow_steps
 from tests.helpers import re_claim
 
@@ -24,10 +24,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def _spawn_runner(name, drain, sleep_seconds):
     env = {
         **os.environ,
-        "D15N_E2E_DB": connection.settings_dict["NAME"],
-        "D15N_E2E_NAME": name,
-        "D15N_E2E_DRAIN": str(drain),
-        "D15N_TEST_STEP_SLEEP": str(sleep_seconds),
+        "EVERYSTEP_E2E_DB": connection.settings_dict["NAME"],
+        "EVERYSTEP_E2E_NAME": name,
+        "EVERYSTEP_E2E_DRAIN": str(drain),
+        "EVERYSTEP_TEST_STEP_SLEEP": str(sleep_seconds),
     }
     return subprocess.Popen(
         [sys.executable, "-m", "tests.rollout_worker"],
@@ -151,13 +151,13 @@ def test_worker_loop_completes_due_workflows():
 def test_command_is_registered():
     from django.core.management import get_commands
 
-    assert "d15n_worker" in get_commands()
+    assert "everystep_worker" in get_commands()
 
 
 def test_drain_completes_inflight_workflow_within_deadline(monkeypatch):
     # The only step is in flight at stop: it finishes inside the drain window,
     # its result is stored, and the worker exits cleanly.
-    monkeypatch.setenv("D15N_TEST_STEP_SLEEP", "1")
+    monkeypatch.setenv("EVERYSTEP_TEST_STEP_SLEEP", "1")
     wf = schedule(only_sleeper, {})
 
     worker = Worker(pool_size=1, poll=0.05, name="drain-w", drain=5)
@@ -189,7 +189,7 @@ def test_drain_completes_inflight_workflow_within_deadline(monkeypatch):
 def test_drain_orphans_at_step_boundary_and_resume_completes(monkeypatch):
     # Stop lands mid step 2: step 2 finishes and is stored, step 3 never
     # starts, the workflow is left running, and a same-named runner resumes it.
-    monkeypatch.setenv("D15N_TEST_STEP_SLEEP", "1")
+    monkeypatch.setenv("EVERYSTEP_TEST_STEP_SLEEP", "1")
     wf = schedule(slow_steps.slow_flow, {})
 
     worker = Worker(pool_size=1, poll=0.05, name="drain-w", drain=5)

@@ -1,7 +1,7 @@
-from d15n import schedule
-from d15n.errors import SimulatedCrash
-from d15n.runner import execute
-from d15n.worker import claim_new, resume_own
+from everystep import schedule
+from everystep.errors import SimulatedCrash
+from everystep.runner import execute
+from everystep.worker import claim_new, resume_own
 
 
 def run_to_completion(*args, **kwargs):

@@ -1,12 +1,12 @@
 [project]
-site_url = "https://brutasse.github.io/d15n/"
-site_name = "d15n"
+site_url = "https://brutasse.github.io/everystep/"
+site_name = "everystep"
 site_description = "Durable workflow execution for Django"
 site_author = "Bruno Renié"
 copyright = "&copy; 2026 Exoscale"
 
-repo_url = "https://github.com/brutasse/d15n"
-repo_name = "brutasse/d15n"
+repo_url = "https://github.com/brutasse/everystep"
+repo_name = "brutasse/everystep"
 edit_uri = "edit/main/docs/"
 
 nav = [
@@ -84,7 +84,7 @@ toggle.name = "Switch to system preference"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/brutasse/d15n"
+link = "https://github.com/brutasse/everystep"
 
 [project.plugins.mkdocstrings.handlers.python]
 paths = ["."]

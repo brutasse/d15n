@@ -1,11 +1,11 @@
 # How it works
 
 This section is the execution model: how a run moves through its states, what
-replay means, and what guarantees d15n gives you.
+replay means, and what guarantees everystep gives you.
 
 ## A run's lifecycle
 
-A workflow run is a `d15n_workflow` row with a status:
+A workflow run is a `everystep_workflow` row with a status:
 
 ```
 scheduled ──claim──▶ running ──▶ completed
@@ -21,7 +21,7 @@ scheduled ──claim──▶ running ──▶ completed
 | `failed` | Terminal. `error` holds the encoded exception; `completed_at` is set. |
 | `stopped` | Terminal, deliberate. A step raised `Terminal`; `error` holds the encoded reason and payload. See [errors](errors.md#stopping-a-workflow-terminal). |
 
-Every executed step is a `d15n_step` row with its own status — `done` or
+Every executed step is a `everystep_step` row with its own status — `done` or
 `failed` — independent of the run's status.
 
 ## Claiming
@@ -29,13 +29,13 @@ Every executed step is a `d15n_step` row with its own status — `done` or
 A worker polls its database and claims due work inside a single transaction:
 
 ```sql
-SELECT id FROM d15n_workflow
+SELECT id FROM everystep_workflow
 WHERE status = 'scheduled'
 ORDER BY created_at
 LIMIT <free pool capacity>
 FOR UPDATE SKIP LOCKED;
 -- then, same transaction:
-UPDATE d15n_workflow SET status = 'running', claimed_by = '<name>' WHERE id IN (...);
+UPDATE everystep_workflow SET status = 'running', claimed_by = '<name>' WHERE id IN (...);
 ```
 
 `FOR UPDATE SKIP LOCKED` means concurrent workers claim **disjoint** sets:
@@ -71,7 +71,7 @@ Consequences:
   from the recorded one, the run fails loudly with
   `WorkflowCodeError` instead of silently executing the wrong work.
 - A step's identity is its **dotpath**: its position in the body, or its
-  `d15n_id` name. See [step identity](identity.md).
+  `everystep_id` name. See [step identity](identity.md).
 
 ## Durability: at-least-once
 
@@ -85,7 +85,7 @@ If the worker process dies in the crash window — the side effect happened,
 the record did not — the next replay finds no record for that step and
 **executes it again**. The side effect runs a second time.
 
-This is the whole robustness story of d15n, and it is why:
+This is the whole robustness story of everystep, and it is why:
 
 - durable means *the run reaches a terminal state*, not *the run succeeded*;
 - your side effects must be **idempotent or keyed** — see the

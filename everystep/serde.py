@@ -6,10 +6,10 @@ import enum
 import json
 import uuid
 
-from d15n.errors import StepFailure
-from d15n.registry import import_dotted
+from everystep.errors import StepFailure
+from everystep.registry import import_dotted
 
-_TAG = "__d15n_type__"
+_TAG = "__everystep_type__"
 
 
 def dumps(value):
@@ -21,12 +21,12 @@ def loads(raw):
 
 
 def json_default(obj):
-    """json.JSONEncoder.default hook for d15n's extended types."""
+    """json.JSONEncoder.default hook for everystep's extended types."""
     return _encode(obj)
 
 
 def json_object_hook(obj):
-    """json.JSONDecoder object_hook for d15n's extended types."""
+    """json.JSONDecoder object_hook for everystep's extended types."""
     return _decode(obj)
 
 
@@ -48,7 +48,7 @@ def _encode(obj):
             "value": obj.value,
         }
     raise TypeError(
-        "d15n cannot serialize %s; workflow data must be JSON-serializable "
+        "everystep cannot serialize %s; workflow data must be JSON-serializable "
         "(datetime, date, timedelta, UUID, bytes and enum are supported)"
         % type(obj).__name__
     )

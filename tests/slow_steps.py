@@ -8,7 +8,7 @@ import os
 import threading
 import time
 
-from d15n import step, workflow
+from everystep import step, workflow
 
 SLEEPER_STARTED = threading.Event()
 
@@ -21,7 +21,7 @@ def quick():
 @step
 def sleeper():
     SLEEPER_STARTED.set()
-    time.sleep(float(os.environ.get("D15N_TEST_STEP_SLEEP", "0")))
+    time.sleep(float(os.environ.get("EVERYSTEP_TEST_STEP_SLEEP", "0")))
     return "s"
 
 

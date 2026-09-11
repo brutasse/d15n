@@ -6,9 +6,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install the d15n library from the repo root (build context).
+# Install the everystep library from the repo root (build context).
 COPY pyproject.toml README.md ./
-COPY d15n ./d15n
+COPY everystep ./everystep
 RUN pip install --no-cache-dir hatchling \
     && pip install --no-cache-dir --no-build-isolation .
 

@@ -1,10 +1,10 @@
-"""The d15n UI page: a single self-contained HTML document.
+"""The everystep UI page: a single self-contained HTML document.
 
-Inline CSS and JS, no external assets. The view replaces __D15N_BASE__
+Inline CSS and JS, no external assets. The view replaces __EVERYSTEP_BASE__
 with the mount path so the page works under any prefix.
 
 The run detail renders steps as an Argo-workflows-style DAG: a pure
-layout function (in its own <script id="d15n-dag"> block, no DOM, so the
+layout function (in its own <script id="everystep-dag"> block, no DOM, so the
 test suite can run it under node) positions status-colored circles and
 wires fan-out/fan-in edges; the main script renders it as an SVG that
 supports wheel zoom, drag panning, and click-through step details.
@@ -15,7 +15,7 @@ PAGE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>d15n</title>
+<title>everystep</title>
 <style>
 :root {
   --bg: #0e1116;
@@ -181,7 +181,7 @@ pre {
 </head>
 <body>
 <header>
-  <span class="logo">d15n</span>
+  <span class="logo">everystep</span>
   <input id="run-by-id" placeholder="load run by id" spellcheck="false" autocomplete="off">
   <span class="conn" id="conn"><span class="dot"></span><span id="conn-label">connecting</span></span>
 </header>
@@ -197,7 +197,7 @@ pre {
   <ul id="runners-list"></ul>
 </main>
 <aside id="detail"><div class="dim">select a run</div></aside>
-<script id="d15n-dag">
+<script id="everystep-dag">
 "use strict";
 // Pure DAG layout: turns a workflow's step/fork graph (or a set of recorded
 // step dot-paths) into positioned nodes and edges. No DOM access, so this
@@ -352,7 +352,7 @@ function dagScope(items, x0, y0, out) {
 </script>
 <script>
 "use strict";
-const BASE = "__D15N_BASE__";
+const BASE = "__EVERYSTEP_BASE__";
 const $ = (s) => document.querySelector(s);
 const state = { runs: [], runners: [], selected: null, detail: null };
 let selectedFp = null;
@@ -398,15 +398,15 @@ function dagShortLabel(func) {
   return name.length > 14 ? name.slice(0, 13) + "…" : name;
 }
 
-// d15n's extended JSON types are stored tagged; render their value for display.
+// everystep's extended JSON types are stored tagged; render their value for display.
 function viewTagged(v) {
-  if (v.__d15n_type__ === "bytes") return v.value + " (base64)";
-  if (v.__d15n_type__ === "enum") return v.value + " (" + v.type + ")";
+  if (v.__everystep_type__ === "bytes") return v.value + " (base64)";
+  if (v.__everystep_type__ === "enum") return v.value + " (" + v.type + ")";
   return String(v.value);
 }
 function pretty(v) {
   return JSON.stringify(v, (k, val) =>
-    val && typeof val === "object" && !Array.isArray(val) && "__d15n_type__" in val && "value" in val
+    val && typeof val === "object" && !Array.isArray(val) && "__everystep_type__" in val && "value" in val
       ? viewTagged(val)
       : val, 2);
 }

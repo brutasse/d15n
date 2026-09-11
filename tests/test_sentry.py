@@ -4,12 +4,12 @@ import types
 
 import pytest
 
-from d15n import runner
-from d15n import Terminal, schedule, step, workflow
-from d15n.errors import SimulatedCrash
-from d15n.models import Workflow
-from d15n.runner import execute
-from d15n.worker import Worker
+from everystep import runner
+from everystep import Terminal, schedule, step, workflow
+from everystep.errors import SimulatedCrash
+from everystep.models import Workflow
+from everystep.runner import execute
+from everystep.worker import Worker
 from tests.helpers import claim_next, crash_on, run_to_completion
 
 pytestmark = pytest.mark.django_db
@@ -78,7 +78,7 @@ def test_unhandled_failure_is_reported(sentry):
     exc, contexts = sentry.events[0]
     assert isinstance(exc, Boom)
     assert str(exc) == "kaboom"
-    assert contexts["d15n"] == {
+    assert contexts["everystep"] == {
         "workflow": f"{failing.__module__}.{failing.__qualname__}",
         "workflow_id": str(run.id),
     }
@@ -155,8 +155,8 @@ def test_runner_escape_is_reported(sentry):
     assert run.status == Workflow.Status.FAILED
     assert len(sentry.events) == 1
     exc, contexts = sentry.events[0]
-    assert type(exc).__name__ == "D15nError"
-    assert contexts["d15n"] == {"workflow_id": str(run.id)}
+    assert type(exc).__name__ == "EverystepError"
+    assert contexts["everystep"] == {"workflow_id": str(run.id)}
 
 
 def test_missing_sentry_sdk_is_a_noop():

@@ -14,17 +14,17 @@ that survives restarts:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: d15n-runner
+  name: everystep-runner
 spec:
   replicas: 3
-  serviceName: d15n-runner
+  serviceName: everystep-runner
   template:
     spec:
       terminationGracePeriodSeconds: 90   # > --drain
       containers:
         - name: runner
           image: your-image
-          args: ["d15n_worker", "--pool", "8", "--name", "$(POD_NAME)",
+          args: ["everystep_worker", "--pool", "8", "--name", "$(POD_NAME)",
                  "--drain", "30"]
           env:
             - name: POD_NAME
@@ -45,7 +45,7 @@ A plain service unit per worker, with distinct names:
 
 ```ini
 [Service]
-ExecStart=/usr/bin/python /app/manage.py d15n_worker --pool 8 --name d15n-runner-0 --drain 30
+ExecStart=/usr/bin/python /app/manage.py everystep_worker --pool 8 --name everystep-runner-0 --drain 30
 TimeoutStopSec=90
 ```
 
@@ -93,7 +93,7 @@ will steal them. Signals that this happened:
 - the worker's shutdown log: `drain deadline of Ns expired with M workflow(s)
   still in flight; they are orphaned and will be picked up by the next worker
   named ...`
-- the `d15n_worker_orphans_total` metric for that runner.
+- the `everystep_worker_orphans_total` metric for that runner.
 
 Two remedies:
 
@@ -102,12 +102,12 @@ Two remedies:
 - **re-schedule** the work with fresh arguments and, if you use them, fresh
   idempotency keys — the old run keeps its row.
 
-Both are manual; d15n deliberately does not guess which orphaned work is
+Both are manual; everystep deliberately does not guess which orphaned work is
 still worth doing.
 
 ## Data retention
 
-d15n never deletes its own rows. Each run keeps its `Workflow` row plus one
+everystep never deletes its own rows. Each run keeps its `Workflow` row plus one
 `Step` row per executed step, forever. If that growth matters, prune or
 archive from the application side — for example a periodic job that drops
 terminal runs older than N days. The UI shows the 200 most recent runs

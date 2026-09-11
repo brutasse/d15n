@@ -1,7 +1,7 @@
 # Scheduling workflows
 
 ```python
-from d15n import schedule
+from everystep import schedule
 
 run = schedule(provision_vm, {"name": "vm-1", "size": "m1"},
                idempotency_key=None)   # optional
@@ -38,7 +38,7 @@ INSERT executes. The work happens when a worker claims the row.
   `schedule(wf, a, b)` calls `wf(a, b)`.
 - Arguments must be JSON-serializable (the extended types are supported —
   see [steps](../concepts/steps.md#serialization)). They are validated up
-  front: `schedule` raises `D15nError` before inserting anything.
+  front: `schedule` raises `EverystepError` before inserting anything.
 - Arguments are **fixed at schedule time** and replayed verbatim on every
   claim. The workflow name is stored as the function's qualified name
   (`module.qualname`) and resolved by the worker at claim time — from the

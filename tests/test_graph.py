@@ -1,10 +1,10 @@
 import pytest
 
-from d15n import graph, parallel, schedule, step, workflow
-from d15n.errors import SimulatedCrash
-from d15n.models import Step, Workflow
-from d15n.registry import name_of
-from d15n.runner import execute
+from everystep import graph, parallel, schedule, step, workflow
+from everystep.errors import SimulatedCrash
+from everystep.models import Step, Workflow
+from everystep.registry import name_of
+from everystep.runner import execute
 from tests.helpers import claim_next, crash_on, re_claim, run_to_completion
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -63,20 +63,20 @@ def seq(args):
 
 @workflow
 def named(args):
-    g_a(d15n_id="one")
-    g_b(2, d15n_id="two")
+    g_a(everystep_id="one")
+    g_b(2, everystep_id="two")
     return g_c()
 
 
 @workflow
 def fork(args):
-    a, b = parallel(lambda: g_a(), lambda: g_b("x"), d15n_id="fan")
+    a, b = parallel(lambda: g_a(), lambda: g_b("x"), everystep_id="fan")
     return g_c() + a + b
 
 
 @workflow
 def seq_branch(args):
-    a, b = parallel([lambda: g_a(), lambda: g_b("q")], g_c, d15n_id="fan")
+    a, b = parallel([lambda: g_a(), lambda: g_b("q")], g_c, everystep_id="fan")
     return a + b
 
 
@@ -93,9 +93,9 @@ def nested_calls(args):
 
 @workflow
 def multi_fork(args):
-    parallel(lambda: g_a(), lambda: g_b("x"), d15n_id="fan")
+    parallel(lambda: g_a(), lambda: g_b("x"), everystep_id="fan")
     g_c()
-    return parallel(lambda: g_a(), lambda: g_b("y"), d15n_id="fan2")
+    return parallel(lambda: g_a(), lambda: g_b("y"), everystep_id="fan2")
 
 
 def build_args(name):
@@ -141,7 +141,7 @@ def conditional(args):
 
 @workflow
 def dynamic_name(args):
-    return g_a(d15n_id=f"iter-{args['i']}")
+    return g_a(everystep_id=f"iter-{args['i']}")
 
 
 @workflow
@@ -157,7 +157,7 @@ def local_call(args):
     [
         pytest.param(looped, id="generator-expression"),
         pytest.param(conditional, id="control-flow"),
-        pytest.param(dynamic_name, id="dynamic-d15n_id"),
+        pytest.param(dynamic_name, id="dynamic-everystep_id"),
         pytest.param(local_call, id="local-function-call"),
     ],
 )
@@ -180,7 +180,7 @@ def test_unresolvable_workflow():
 def test_annotate_marks_in_flight_step():
     wf = schedule(seq, {})
     claim_next()
-    from d15n import runner
+    from everystep import runner
 
     runner.fault = crash_on("2")
     with pytest.raises(SimulatedCrash):

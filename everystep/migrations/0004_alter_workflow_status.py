@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('d15n', '0003_alter_workflow_id'),
+        ('everystep', '0003_alter_workflow_id'),
     ]
 
     operations = [

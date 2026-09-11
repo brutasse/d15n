@@ -1,8 +1,8 @@
-class D15nError(Exception):
-    """Base class for d15n errors."""
+class EverystepError(Exception):
+    """Base class for everystep errors."""
 
 
-class SimulatedCrash(D15nError):
+class SimulatedCrash(EverystepError):
     """Raised from a test fault handler to simulate a process death mid-step.
 
     The runner re-raises it without writing any further state, leaving the
@@ -10,15 +10,15 @@ class SimulatedCrash(D15nError):
     """
 
 
-class StepFailure(D15nError):
+class StepFailure(EverystepError):
     """A recorded step failure whose original exception type is unavailable."""
 
 
-class WorkflowCodeError(D15nError):
+class WorkflowCodeError(EverystepError):
     """A workflow body diverged from its previously recorded step identities."""
 
 
-class DrainOrphan(D15nError):
+class DrainOrphan(EverystepError):
     """Raised at a step boundary when the runner is draining after a stop signal.
 
     The step in flight at the signal finishes and is recorded; no new step
@@ -27,7 +27,7 @@ class DrainOrphan(D15nError):
     """
 
 
-class Terminal(D15nError):
+class Terminal(EverystepError):
     """Raised from a step to stop the workflow for a known reason.
 
     The step in flight finishes and is recorded; no new step starts and the

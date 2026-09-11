@@ -1,10 +1,10 @@
 import pytest
 
-from d15n import context, parallel, runner
-from d15n import schedule, step, workflow
-from d15n.errors import SimulatedCrash
-from d15n.models import Step, Workflow
-from d15n.runner import execute
+from everystep import context, parallel, runner
+from everystep import schedule, step, workflow
+from everystep.errors import SimulatedCrash
+from everystep.models import Step, Workflow
+from everystep.runner import execute
 from tests.helpers import claim_next, crash_on, re_claim, run_to_completion
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -44,7 +44,7 @@ def s_int(n):
 
 @workflow
 def named_chain(args):
-    return s_three(s_one(d15n_id="one") + s_two())
+    return s_three(s_one(everystep_id="one") + s_two())
 
 
 def test_named_step_id_with_numeric_siblings():
@@ -66,7 +66,7 @@ def unnamed_chain(args):
 
 @workflow
 def half_named_chain(args):
-    return s_one() + s_two(d15n_id="mid") + s_three("x")
+    return s_one() + s_two(everystep_id="mid") + s_three("x")
 
 
 def test_naming_a_step_does_not_shift_other_ids():
@@ -84,15 +84,15 @@ def test_naming_a_step_does_not_shift_other_ids():
 
 @workflow
 def two_named(args):
-    return s_one(d15n_id="first") + s_two(d15n_id="second")
+    return s_one(everystep_id="first") + s_two(everystep_id="second")
 
 
 @workflow
 def two_named_plus(args):
     return (
-        s_one(d15n_id="first")
-        + s_three("x", d15n_id="inserted")
-        + s_two(d15n_id="second")
+        s_one(everystep_id="first")
+        + s_three("x", everystep_id="inserted")
+        + s_two(everystep_id="second")
     )
 
 
@@ -114,9 +114,9 @@ def test_named_steps_stable_under_insertion():
 def named_fork(args):
     s_one()
     a, b = parallel(
-        lambda: s_two(d15n_id="left"),
-        lambda: s_three("z", d15n_id="right"),
-        d15n_id="fanout",
+        lambda: s_two(everystep_id="left"),
+        lambda: s_three("z", everystep_id="right"),
+        everystep_id="fanout",
     )
     return a + b
 
@@ -134,19 +134,19 @@ def test_named_fork_and_branch_steps():
 
 @workflow
 def duplicate_name(args):
-    s_one(d15n_id="x")
-    s_two(d15n_id="x")
+    s_one(everystep_id="x")
+    s_two(everystep_id="x")
     return "unreached"
 
 
-def test_duplicate_d15n_id_in_scope_fails_loudly():
+def test_duplicate_everystep_id_in_scope_fails_loudly():
     wf = schedule(duplicate_name, {})
     claim_next()
     execute(wf.id)
     wf.refresh_from_db()
 
     assert wf.status == Workflow.Status.FAILED
-    assert wf.error["type"].endswith("D15nError")
+    assert wf.error["type"].endswith("EverystepError")
     assert "already used in this scope" in wf.error["message"]
     # The second call was rejected before its side effect ran.
     assert CALLS == ["s_one"]
@@ -155,13 +155,13 @@ def test_duplicate_d15n_id_in_scope_fails_loudly():
 @workflow
 def same_name_in_branches(args):
     a, b = parallel(
-        lambda: s_one(d15n_id="x"),
-        lambda: s_two(d15n_id="x"),
+        lambda: s_one(everystep_id="x"),
+        lambda: s_two(everystep_id="x"),
     )
     return a + b
 
 
-def test_same_d15n_id_ok_in_different_branches():
+def test_same_everystep_id_ok_in_different_branches():
     wf = run_to_completion(same_name_in_branches, {})
     assert wf.result == "12"
     assert {s.step_id for s in Step.objects.filter(workflow_id=wf.id)} == {
@@ -172,8 +172,8 @@ def test_same_d15n_id_ok_in_different_branches():
 
 @workflow
 def fork_name_collides(args):
-    s_one(d15n_id="fanout")
-    parallel(lambda: s_two(), d15n_id="fanout")
+    s_one(everystep_id="fanout")
+    parallel(lambda: s_two(), everystep_id="fanout")
     return "unreached"
 
 
@@ -184,33 +184,33 @@ def test_fork_name_colliding_with_step_name_fails_loudly():
     wf.refresh_from_db()
 
     assert wf.status == Workflow.Status.FAILED
-    assert wf.error["type"].endswith("D15nError")
+    assert wf.error["type"].endswith("EverystepError")
     assert "already used in this scope" in wf.error["message"]
     assert CALLS == ["s_one"]
 
 
 @workflow
 def named_by_arg(args):
-    return s_one(d15n_id=args["id"])
+    return s_one(everystep_id=args["id"])
 
 
 @pytest.mark.parametrize("bad", ["", "a.b", "123", "a b", 42])
-def test_invalid_d15n_id_fails_loudly(bad):
+def test_invalid_everystep_id_fails_loudly(bad):
     wf = schedule(named_by_arg, {"id": bad})
     claim_next()
     execute(wf.id)
     wf.refresh_from_db()
 
     assert wf.status == Workflow.Status.FAILED
-    assert wf.error["type"].endswith("D15nError")
-    assert wf.error["message"].startswith("d15n_id")
+    assert wf.error["type"].endswith("EverystepError")
+    assert wf.error["message"].startswith("everystep_id")
     assert CALLS == []
     assert Step.objects.filter(workflow_id=wf.id).count() == 0
 
 
 @workflow
 def named_flaky(args):
-    return s_one(d15n_id="first") + s_two(d15n_id="second") + s_three("k")
+    return s_one(everystep_id="first") + s_two(everystep_id="second") + s_three("k")
 
 
 def test_named_step_crash_and_resume():
@@ -253,7 +253,7 @@ def read_named(which):
 
 @workflow
 def reads_previous(args):
-    source(d15n_id="source")
+    source(everystep_id="source")
     return read_named("source")
 
 
@@ -300,9 +300,9 @@ SLOT = {"fn": "a"}
 @workflow
 def named_slot(args):
     if SLOT["fn"] == "a":
-        s_one(d15n_id="slot")
+        s_one(everystep_id="slot")
     else:
-        s_two(d15n_id="slot")
+        s_two(everystep_id="slot")
     s_three("k")
     return "done"
 
@@ -333,7 +333,7 @@ def test_code_change_at_named_slot_detected():
 
 @workflow
 def looped(args):
-    return sum(s_int(i, d15n_id=f"iter-{i}") for i in range(2))
+    return sum(s_int(i, everystep_id=f"iter-{i}") for i in range(2))
 
 
 def test_dynamic_names_in_a_loop():
@@ -345,9 +345,9 @@ def test_dynamic_names_in_a_loop():
     }
 
 
-def test_d15n_id_ignored_outside_workflow():
-    assert s_one(d15n_id="x") == "1"
-    assert s_three("v", d15n_id="y") == "v!"
+def test_everystep_id_ignored_outside_workflow():
+    assert s_one(everystep_id="x") == "1"
+    assert s_three("v", everystep_id="y") == "v!"
     assert CALLS == ["s_one", "s_three"]
     assert Workflow.objects.count() == 0
     assert Step.objects.count() == 0

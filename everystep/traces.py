@@ -1,9 +1,9 @@
 """OpenTelemetry traces for workflow runs.
 
-Requires the optional `otel` extra (pip install "d15n[otel]"). Without
+Requires the optional `otel` extra (pip install "everystep[otel]"). Without
 opentelemetry-api, every function in this module is a no-op.
 
-d15n only creates spans on the global tracer `d15n`; the host application
+everystep only creates spans on the global tracer `everystep`; the host application
 owns the TracerProvider and its exporters, exactly as it owns Sentry.
 """
 
@@ -21,7 +21,7 @@ except ImportError:
 
 enabled = otel_trace is not None
 
-_tracer = otel_trace.get_tracer("d15n") if enabled else None
+_tracer = otel_trace.get_tracer("everystep") if enabled else None
 
 
 class _NoopSpan:
@@ -42,7 +42,7 @@ def span(name, attributes=None, active=True):
     """Start a span as the current span, so nested spans become its children.
 
     Yields a no-op span when the otel extra is absent or `active` is False.
-    Exception handling is d15n's: status is set explicitly via mark_error
+    Exception handling is everystep's: status is set explicitly via mark_error
     and mark_ok, never inferred from an unwound span.
     """
     if not enabled or not active:

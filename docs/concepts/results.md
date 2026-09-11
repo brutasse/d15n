@@ -5,7 +5,7 @@ current run — on a fresh pass and on a replay — through the current
 execution context:
 
 ```python
-from d15n import context, step
+from everystep import context, step
 
 
 @step
@@ -22,7 +22,7 @@ def tag_vm():
 
 @workflow
 def provision_vm(args):
-    create_vm(args["name"], args["size"], d15n_id="create-vm")
+    create_vm(args["name"], args["size"], everystep_id="create-vm")
     tag_vm()
     return None
 ```
@@ -50,7 +50,7 @@ Rules:
 
 - A step **never sees its own result** — that is only recorded after the
   step returns.
-- Steps are keyed by **step id**: a named step by its `d15n_id` (e.g.
+- Steps are keyed by **step id**: a named step by its `everystep_id` (e.g.
   `"create-vm"`), an unnamed step by its positional dotpath (`"1"`, `"2"`,
   ...). Name the steps you read, so the lookup is stable across code edits.
 - Within a `parallel`, sibling branches run concurrently: **do not read a

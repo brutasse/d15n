@@ -5,12 +5,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 from django.db import connections
 
-from d15n import context, serde, traces
-from d15n.context import Context
-from d15n.errors import D15nError, DrainOrphan, Terminal
-from d15n.models import Workflow
-from d15n.registry import name_of, registry
-from d15n.runner import run_step
+from everystep import context, serde, traces
+from everystep.context import Context
+from everystep.errors import EverystepError, DrainOrphan, Terminal
+from everystep.models import Workflow
+from everystep.registry import name_of, registry
+from everystep.runner import run_step
 
 _WORKFLOW = "workflow"
 _STEP = "step"
@@ -31,7 +31,7 @@ def workflow(func):
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
-    wrapper.__d15n__ = _WORKFLOW
+    wrapper.__everystep__ = _WORKFLOW
     return registry.register_workflow(wrapper)
 
 
@@ -42,20 +42,20 @@ def step(func):
     exception) is persisted in SQL and served from the store on replay, so
     the function body only runs for unrecorded steps. Called outside a
     running workflow, it runs as a plain function with no recording. Pass
-    ``d15n_id=...`` at the call site for a stable step identity.
+    ``everystep_id=...`` at the call site for a stable step identity.
     """
     if not callable(func):
         raise TypeError("@step must decorate a function")
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        d15n_id = kwargs.pop("d15n_id", None)
+        everystep_id = kwargs.pop("everystep_id", None)
         ctx = context.current()
         if ctx is None:
             return func(*args, **kwargs)
-        return run_step(ctx, func, args, kwargs, d15n_id)
+        return run_step(ctx, func, args, kwargs, everystep_id)
 
-    wrapper.__d15n__ = _STEP
+    wrapper.__everystep__ = _STEP
     return registry.register_step(wrapper)
 
 
@@ -66,12 +66,12 @@ def schedule(workflow_func, *args, idempotency_key=None):
     With an idempotency_key, a concurrent or repeated schedule with the same
     key returns the existing workflow instead of creating a new one.
     """
-    if getattr(workflow_func, "__d15n__", None) != _WORKFLOW:
+    if getattr(workflow_func, "__everystep__", None) != _WORKFLOW:
         raise TypeError(f"{workflow_func!r} is not a @workflow-decorated function")
     try:
         serde.dumps(list(args))
     except (TypeError, ValueError) as exc:
-        raise D15nError(f"workflow arguments are not serializable: {exc}") from exc
+        raise EverystepError(f"workflow arguments are not serializable: {exc}") from exc
 
     defaults = {"args": list(args), "status": Workflow.Status.SCHEDULED}
     if idempotency_key is None:
@@ -129,7 +129,7 @@ def _as_branch(branch):
     return run
 
 
-def parallel(*branches, d15n_id=None):
+def parallel(*branches, everystep_id=None):
     """Run zero-arg callables concurrently; return their results in order.
 
     Each branch is a single step (a @step function or a lambda calling one),
@@ -138,7 +138,7 @@ def parallel(*branches, d15n_id=None):
     If any branch raises, the first error is re-raised (single branch) or an
     ExceptionGroup is raised (several branches).
 
-    Pass d15n_id="..." to give the fork a stable name, so the branch step
+    Pass everystep_id="..." to give the fork a stable name, so the branch step
     ids ("name.0.1", "name.1.1") do not shift when steps before it change.
     """
     if not branches:
@@ -152,11 +152,11 @@ def parallel(*branches, d15n_id=None):
         context.set_current(ctx)
         owns_ctx = True
     try:
-        fork_id = ctx.next_id(d15n_id)
-        with traces.span("parallel", {"d15n.parallel.id": fork_id}, active=ctx.persistent):
+        fork_id = ctx.next_id(everystep_id)
+        with traces.span("parallel", {"everystep.parallel.id": fork_id}, active=ctx.persistent):
             fork_ctx = traces.capture_context() if ctx.persistent else None
             with ThreadPoolExecutor(
-                max_workers=len(branches), thread_name_prefix="d15n-parallel"
+                max_workers=len(branches), thread_name_prefix="everystep-parallel"
             ) as pool:
                 futures = [
                     pool.submit(_run_branch, ctx, fork_id, index, branch, fork_ctx)
@@ -175,4 +175,4 @@ def parallel(*branches, d15n_id=None):
         raise drains[0].exc
     if len(errors) == 1:
         raise errors[0].exc
-    raise ExceptionGroup("d15n parallel branches failed", [e.exc for e in errors])
+    raise ExceptionGroup("everystep parallel branches failed", [e.exc for e in errors])

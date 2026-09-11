@@ -2,8 +2,8 @@ import pytest
 
 from django.db import transaction
 
-from d15n import parallel, schedule, step, workflow
-from d15n.models import Step, Workflow
+from everystep import parallel, schedule, step, workflow
+from everystep.models import Step, Workflow
 from tests.helpers import run_to_completion
 
 pytestmark = pytest.mark.django_db

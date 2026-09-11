@@ -9,8 +9,8 @@ import uuid as uuid_lib
 from django.db.models import Count
 from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 
-from d15n import graph, metrics, serde, ui
-from d15n.models import Step, Workflow
+from everystep import graph, metrics, serde, ui
+from everystep.models import Step, Workflow
 
 _RUNS_LIMIT = 200
 _SSE_POLL_INTERVAL = 1.0
@@ -18,15 +18,15 @@ _SSE_PING_EVERY = 15
 
 
 def metrics_view(request):
-    """Serve d15n's Prometheus metrics, refreshing the queue gauges from the
+    """Serve everystep's Prometheus metrics, refreshing the queue gauges from the
     database on each scrape."""
     return HttpResponse(metrics.render_latest(), content_type=metrics.content_type)
 
 
 def ui_view(request):
-    """Serve the self-contained d15n UI page."""
+    """Serve the self-contained everystep UI page."""
     base = request.path if request.path.endswith("/") else request.path + "/"
-    return HttpResponse(ui.PAGE.replace("__D15N_BASE__", base), content_type="text/html")
+    return HttpResponse(ui.PAGE.replace("__EVERYSTEP_BASE__", base), content_type="text/html")
 
 
 class _PayloadEncoder(json.JSONEncoder):
@@ -35,7 +35,7 @@ class _PayloadEncoder(json.JSONEncoder):
 
 
 def _json_default(obj):
-    """Serialize d15n's extended types the way they are stored, then plain
+    """Serialize everystep's extended types the way they are stored, then plain
     types by value."""
     try:
         return serde.json_default(obj)

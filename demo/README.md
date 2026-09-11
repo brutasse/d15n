@@ -1,6 +1,6 @@
-# d15n demo
+# everystep demo
 
-A throwaway Django project that shows the d15n UI with a live stream of
+A throwaway Django project that shows the everystep UI with a live stream of
 sample workflows.
 
 ## Run it
@@ -9,7 +9,7 @@ sample workflows.
 docker-compose up --build
 ```
 
-Then open <http://localhost:8000/> (it redirects to the UI at `/d15n/`).
+Then open <http://localhost:8000/> (it redirects to the UI at `/everystep/`).
 
 Within seconds the board is populated with a mix of completed, running,
 failed and scheduled runs, and new runs keep arriving: the `seeder`
@@ -37,7 +37,7 @@ args, result, or error.
 
 - `db` — Postgres 16.
 - `web` — Django dev server on :8000, serving the UI.
-- `worker` — a d15n runner (`d15n_worker`, pool of 4) that claims and
+- `worker` — an everystep runner (`everystep_worker`, pool of 4) that claims and
   executes runs.
 - `seeder` — schedules an initial burst, then keeps feeding new runs.
 

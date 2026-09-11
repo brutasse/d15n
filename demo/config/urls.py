@@ -3,10 +3,10 @@ from django.urls import include, path
 
 
 def home(request):
-    return HttpResponseRedirect("/d15n/")
+    return HttpResponseRedirect("/everystep/")
 
 
 urlpatterns = [
     path("", home),
-    path("d15n/", include("d15n.urls")),
+    path("everystep/", include("everystep.urls")),
 ]

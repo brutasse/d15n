@@ -19,8 +19,8 @@ import inspect
 import itertools
 import textwrap
 
-from d15n import api
-from d15n.registry import name_of, registry
+from everystep import api
+from everystep.registry import name_of, registry
 
 _CACHE = {}
 
@@ -163,7 +163,7 @@ def _collect(node, globals_map, prefix, counter, items):
         kind, resolved = _classify(node, globals_map)
         if kind == "fork":
             for kw in node.keywords:
-                if kw.arg is None or kw.arg != "d15n_id":
+                if kw.arg is None or kw.arg != "everystep_id":
                     raise _Unsupported("unexpected keyword in parallel() call")
             items.append(_fork_node(node, prefix, counter, globals_map))
             return
@@ -179,7 +179,7 @@ def _collect(node, globals_map, prefix, counter, items):
             # A plain function: its step calls run in this scope, so inline
             # them at this position.
             items.extend(_parse_function_body(resolved, prefix, counter))
-        # Anything else is plain deterministic code with no d15n calls.
+        # Anything else is plain deterministic code with no everystep calls.
     elif isinstance(node, (ast.Attribute, ast.Starred)):
         _collect(node.value, globals_map, prefix, counter, items)
     elif isinstance(node, ast.Subscript):
@@ -255,31 +255,31 @@ def _classify(call, globals_map):
             return None, None
     else:
         raise _Unsupported("indirect call in the workflow body")
-    if getattr(obj, "__d15n__", None) == "step":
+    if getattr(obj, "__everystep__", None) == "step":
         return "step", obj
     if obj is api.parallel:
         return "fork", obj
     return None, obj
 
 
-def _d15n_id(call):
+def _everystep_id(call):
     for kw in call.keywords:
-        if kw.arg == "d15n_id":
+        if kw.arg == "everystep_id":
             if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
                 return kw.value.value
-            raise _Unsupported("dynamic d15n_id in the workflow body")
+            raise _Unsupported("dynamic everystep_id in the workflow body")
     return None
 
 
 def _step_node(call, resolved, prefix, counter):
     tick = next(counter)
-    name = _d15n_id(call) if call is not None else None
+    name = _everystep_id(call) if call is not None else None
     return {"kind": "step", "id": prefix + (name or str(tick)), "func": name_of(resolved)}
 
 
 def _fork_node(call, prefix, counter, globals_map):
     tick = next(counter)
-    fork_id = prefix + (_d15n_id(call) or str(tick))
+    fork_id = prefix + (_everystep_id(call) or str(tick))
     branches = []
     for index, arg in enumerate(call.args):
         branches.append(_parse_branch(arg, f"{fork_id}.{index}.", globals_map))
@@ -302,7 +302,7 @@ def _branch_element(element, globals_map, prefix, counter, items):
         if element.id not in globals_map:
             raise _Unsupported(f"branch refers to local {element.id!r}")
         obj = globals_map[element.id]
-        if getattr(obj, "__d15n__", None) == "step":
+        if getattr(obj, "__everystep__", None) == "step":
             items.append(_step_node(None, obj, prefix, counter))
             return
         if hasattr(obj, "__code__"):
@@ -323,7 +323,7 @@ def _parse_function_body(func, prefix, counter):
     try:
         return _parse_scope(body, globals_map, prefix, counter)
     except _Unsupported:
-        if _calls_d15n(body, globals_map, set()):
+        if _calls_everystep(body, globals_map, set()):
             raise
         return []
 
@@ -344,7 +344,7 @@ def _function_body(func):
     return tree.body[0].body, _name_scope(func)
 
 
-def _calls_d15n(body, globals_map, seen):
+def _calls_everystep(body, globals_map, seen):
     """Best effort: can this source execute a step or fork call, including
     under control flow or via other functions? Only module-level names and
     module attributes are considered reachable step identities (matching how
@@ -364,7 +364,7 @@ def _calls_d15n(body, globals_map, seen):
             obj = getattr(globals_map[func.value.id], func.attr, None)
         else:
             continue
-        if getattr(obj, "__d15n__", None) == "step" or obj is api.parallel:
+        if getattr(obj, "__everystep__", None) == "step" or obj is api.parallel:
             return True
         if hasattr(obj, "__code__"):
             target = _unwrap(obj)
@@ -376,6 +376,6 @@ def _calls_d15n(body, globals_map, seen):
                 sub_body, sub_globals = _function_body(target)
             except _Unsupported:
                 return True
-            if _calls_d15n(sub_body, sub_globals, seen):
+            if _calls_everystep(sub_body, sub_globals, seen):
                 return True
     return False

@@ -4,13 +4,13 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExporter, SpanExportResult
 from opentelemetry.trace import StatusCode
 
-import d15n.runner as runner
-import d15n.traces as traces
-from d15n import parallel, schedule, step, workflow
-from d15n.errors import SimulatedCrash, Terminal
-from d15n.models import Workflow
-from d15n.runner import execute
-from d15n.worker import claim_new
+import everystep.runner as runner
+import everystep.traces as traces
+from everystep import parallel, schedule, step, workflow
+from everystep.errors import SimulatedCrash, Terminal
+from everystep.models import Workflow
+from everystep.runner import execute
+from everystep.worker import claim_new
 from tests.helpers import crash_on, re_claim, run_to_completion
 
 # transaction=True: parallel branches run on pool threads with their own
@@ -109,7 +109,7 @@ def fanout(args):
     return parallel(
         lambda: ok_step(),
         lambda: other_step(),
-        d15n_id="fan",
+        everystep_id="fan",
     )
 
 
@@ -121,15 +121,15 @@ def test_completed_run_has_run_and_step_spans(spans):
     assert len(_roots(finished)) == 1
     root = _roots(finished)[0]
     assert root.name == "tests.test_traces.good"
-    assert root.attributes["d15n.workflow.id"] == str(run.id)
-    assert root.attributes["d15n.workflow.status"] == "completed"
+    assert root.attributes["everystep.workflow.id"] == str(run.id)
+    assert root.attributes["everystep.workflow.status"] == "completed"
     assert root.status.status_code == StatusCode.OK
 
     steps = _children(finished)
     assert len(steps) == 1
     step_span = steps[0]
     assert step_span.name == "tests.test_traces.ok_step"
-    assert step_span.attributes["d15n.step.id"] == "1"
+    assert step_span.attributes["everystep.step.id"] == "1"
     assert step_span.status.status_code == StatusCode.OK
     assert step_span.parent.span_id == root.context.span_id
     assert step_span.context.trace_id == root.context.trace_id
@@ -141,7 +141,7 @@ def test_failed_run_marks_errors(spans):
 
     finished = spans.get_finished_spans()
     root = _roots(finished)[0]
-    assert root.attributes["d15n.workflow.status"] == "failed"
+    assert root.attributes["everystep.workflow.status"] == "failed"
     assert root.status.status_code == StatusCode.ERROR
     assert any(e.name == "exception" for e in root.events)
 
@@ -156,7 +156,7 @@ def test_stopped_run_is_not_an_error(spans):
 
     finished = spans.get_finished_spans()
     root = _roots(finished)[0]
-    assert root.attributes["d15n.workflow.status"] == "stopped"
+    assert root.attributes["everystep.workflow.status"] == "stopped"
     assert root.status.status_code == StatusCode.OK
 
     # The step that raised Terminal is still marked as a failed step.
@@ -173,7 +173,7 @@ def test_replayed_step_is_not_respanned(spans):
 
     finished = spans.get_finished_spans()
     assert len(_roots(finished)) == 1
-    assert _roots(finished)[0].attributes["d15n.workflow.status"] == "running"
+    assert _roots(finished)[0].attributes["everystep.workflow.status"] == "running"
     # Step 1 ran and was recorded; step 2 ran but the crash came before its
     # record, so both steps have a span from this claim.
     assert len(_children(finished)) == 2
@@ -186,7 +186,7 @@ def test_replayed_step_is_not_respanned(spans):
 
     finished = spans.get_finished_spans()
     assert len(_roots(finished)) == 2
-    assert _roots(finished)[-1].attributes["d15n.workflow.status"] == "completed"
+    assert _roots(finished)[-1].attributes["everystep.workflow.status"] == "completed"
     # On the second claim step 1 is served from the store and not re-traced;
     # only step 2 re-executes.
     assert len(_children(finished)) == 3
@@ -201,12 +201,12 @@ def test_parallel_steps_nest_under_the_fork_span(spans):
     forks = [s for s in finished if s.name == "parallel"]
     assert len(forks) == 1
     fork = forks[0]
-    assert fork.attributes["d15n.parallel.id"] == "fan"
+    assert fork.attributes["everystep.parallel.id"] == "fan"
     assert fork.parent.span_id == root.context.span_id
 
     branch_steps = [s for s in _children(finished) if s.parent.span_id == fork.context.span_id]
     assert len(branch_steps) == 2
-    assert {s.attributes["d15n.step.id"] for s in branch_steps} == {"fan.0.1", "fan.1.1"}
+    assert {s.attributes["everystep.step.id"] for s in branch_steps} == {"fan.0.1", "fan.1.1"}
 
 
 def test_step_outside_workflow_has_no_spans(spans):

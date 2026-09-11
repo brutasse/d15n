@@ -1,6 +1,6 @@
 # Parallel execution
 
-`parallel(*branches, d15n_id=None)` runs zero-arg callables concurrently and
+`parallel(*branches, everystep_id=None)` runs zero-arg callables concurrently and
 returns their results in branch order.
 
 ```python
@@ -21,7 +21,7 @@ A branch is:
 Each branch runs on its own thread (one pool thread per branch); the fork
 waits for all of them. Branch steps take ids under the fork's id:
 `<fork>.<branch index>.<step>`, e.g. `fanout.0.1`, or `fanout.0.attach-ip`
-when the branch step is named. Pass `d15n_id` to the fork for a stable fork
+when the branch step is named. Pass `everystep_id` to the fork for a stable fork
 id — see [identity](identity.md).
 
 ## Errors

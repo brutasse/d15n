@@ -1,4 +1,4 @@
-"""Sample workflows for the d15n demo.
+"""Sample workflows for the everystep demo.
 
 Every workflow body is a straight sequence of step calls and `parallel`
 forks, so the UI can render the static step graph for each run. The steps
@@ -7,7 +7,7 @@ themselves may do anything; they are opaque units of work.
 
 import time
 
-from d15n import parallel, step, workflow
+from everystep import parallel, step, workflow
 
 
 # --- order_processing: a named sequential pipeline --------------------------
@@ -38,10 +38,10 @@ def notify_order(order):
 @workflow
 def order_processing(args):
     order = args["order"]
-    validate_order(order, d15n_id="validate")
-    receipt = charge_order(order, d15n_id="charge")
-    ship_order(order, d15n_id="ship")
-    notify_order(order, d15n_id="notify")
+    validate_order(order, everystep_id="validate")
+    receipt = charge_order(order, everystep_id="charge")
+    ship_order(order, everystep_id="ship")
+    notify_order(order, everystep_id="notify")
     return receipt
 
 
@@ -77,7 +77,7 @@ def fan_out(args):
         lambda: enrich_order(order),
         lambda: rank_order(order),
         [lambda: tag_order(order), lambda: score_order(order)],
-        d15n_id="fan",
+        everystep_id="fan",
     )
     return {"enriched": enriched, "ranked": ranked, "tags": tags, "score": score}
 
@@ -107,10 +107,10 @@ def nested_fan_out(args):
         lambda: parallel(
             lambda: fetch_region(regions[0]),
             lambda: price_region(regions[0]),
-            d15n_id="inner",
+            everystep_id="inner",
         ),
         lambda: merge_results(regions[0], regions[1]),
-        d15n_id="outer",
+        everystep_id="outer",
     )
     return {"first": first, "second": second}
 
@@ -150,17 +150,17 @@ def publish_release(app):
 def release_pipeline(args):
     app = args["app"]
     parallel(
-        lambda: run_lint(app, d15n_id="lint"),
-        lambda: run_tests(app, d15n_id="tests"),
-        lambda: build_docs(app, d15n_id="docs"),
-        d15n_id="checks",
+        lambda: run_lint(app, everystep_id="lint"),
+        lambda: run_tests(app, everystep_id="tests"),
+        lambda: build_docs(app, everystep_id="docs"),
+        everystep_id="checks",
     )
     parallel(
-        lambda: build_image(app, "amd64", d15n_id="amd64"),
-        lambda: build_image(app, "arm64", d15n_id="arm64"),
-        d15n_id="builds",
+        lambda: build_image(app, "amd64", everystep_id="amd64"),
+        lambda: build_image(app, "arm64", everystep_id="arm64"),
+        everystep_id="builds",
     )
-    return publish_release(app, d15n_id="publish")
+    return publish_release(app, everystep_id="publish")
 
 
 # --- slow_pipeline: long steps, clearly in flight ----------------------------
@@ -223,13 +223,13 @@ def build_search_index(shards):
 def slow_fan(args):
     order = args["order"]
     return parallel(
-        lambda: index_products(order, d15n_id="products"),
-        lambda: index_customers(order, d15n_id="customers"),
+        lambda: index_products(order, everystep_id="products"),
+        lambda: index_customers(order, everystep_id="customers"),
         [
-            lambda: index_orders(order, d15n_id="orders"),
-            lambda: build_search_index(3, d15n_id="search"),
+            lambda: index_orders(order, everystep_id="orders"),
+            lambda: build_search_index(3, everystep_id="search"),
         ],
-        d15n_id="index",
+        everystep_id="index",
     )
 
 
@@ -281,9 +281,9 @@ def confirm_transfer(order):
 @workflow
 def risky_transfer(args):
     order = args["order"]
-    prepare_transfer(order, d15n_id="prepare")
-    result = transfer_funds(order, args["should_fail"], d15n_id="transfer")
-    confirm_transfer(order, d15n_id="confirm")
+    prepare_transfer(order, everystep_id="prepare")
+    result = transfer_funds(order, args["should_fail"], everystep_id="transfer")
+    confirm_transfer(order, everystep_id="confirm")
     return result
 
 
@@ -311,8 +311,8 @@ def sync_audit(order):
 def flaky_parallel(args):
     order = args["order"]
     return parallel(
-        lambda: sync_inventory(order, d15n_id="inventory"),
-        lambda: sync_partner(order, args["should_fail"], d15n_id="partner"),
-        lambda: sync_audit(order, d15n_id="audit"),
-        d15n_id="sync",
+        lambda: sync_inventory(order, everystep_id="inventory"),
+        lambda: sync_partner(order, args["should_fail"], everystep_id="partner"),
+        lambda: sync_audit(order, everystep_id="audit"),
+        everystep_id="sync",
     )

@@ -39,7 +39,7 @@ wheels = [
 ]
 
 [[package]]
-name = "d15n"
+name = "everystep"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

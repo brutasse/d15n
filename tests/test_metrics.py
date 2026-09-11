@@ -6,14 +6,14 @@ import urllib.request
 import pytest
 from django.test import RequestFactory
 
-import d15n.metrics as metrics
-import d15n.runner as runner
-from d15n import schedule, step, workflow
-from d15n.errors import SimulatedCrash, Terminal
-from d15n.models import Workflow
-from d15n.runner import execute
-from d15n.views import metrics_view
-from d15n.worker import Worker, claim_new
+import everystep.metrics as metrics
+import everystep.runner as runner
+from everystep import schedule, step, workflow
+from everystep.errors import SimulatedCrash, Terminal
+from everystep.models import Workflow
+from everystep.runner import execute
+from everystep.views import metrics_view
+from everystep.worker import Worker, claim_new
 from tests import slow_steps
 from tests.helpers import crash_on, re_claim, run_to_completion
 
@@ -189,7 +189,7 @@ def test_replayed_step_is_not_recounted():
 
 
 def test_worker_records_pool_claims_and_inflight(monkeypatch):
-    monkeypatch.setenv("D15N_TEST_STEP_SLEEP", "1")
+    monkeypatch.setenv("EVERYSTEP_TEST_STEP_SLEEP", "1")
     schedule(sleeper_flow, {})
     worker = Worker(pool_size=2, poll=0.05, name="m-w", drain=5)
     thread = threading.Thread(target=worker.run, daemon=True)
@@ -240,12 +240,12 @@ def test_queue_gauges():
 
 
 def test_view_serves_metrics():
-    response = metrics_view(RequestFactory().get("/d15n/metrics"))
+    response = metrics_view(RequestFactory().get("/everystep/metrics"))
     assert response.status_code == 200
     assert "text/plain" in response["Content-Type"]
     body = response.content.decode()
-    assert "d15n_workflows_pending" in body
-    assert "# TYPE d15n_workflow_runs_total counter" in body
+    assert "everystep_workflows_pending" in body
+    assert "# TYPE everystep_workflow_runs_total counter" in body
 
 
 def test_worker_serves_metrics_endpoint():
@@ -264,8 +264,8 @@ def test_worker_serves_metrics_endpoint():
             except OSError:
                 time.sleep(0.05)
         assert body is not None
-        assert f'd15n_worker_pool_size{{runner="ep-w"}} 1.0' in body
-        assert "# TYPE d15n_workflow_runs_total counter" in body
+        assert f'everystep_worker_pool_size{{runner="ep-w"}} 1.0' in body
+        assert "# TYPE everystep_workflow_runs_total counter" in body
     finally:
         worker.stop()
     thread.join(timeout=10)
@@ -277,7 +277,7 @@ def test_worker_serves_metrics_endpoint():
 def test_metrics_port_requires_extra(monkeypatch):
     monkeypatch.setattr(metrics, "enabled", False)
     worker = Worker(pool_size=1, name="no-extra", metrics_port=9999)
-    with pytest.raises(RuntimeError, match="d15n\\[metrics\\]"):
+    with pytest.raises(RuntimeError, match="everystep\\[metrics\\]"):
         worker._start_metrics_server()
 
 
@@ -289,6 +289,6 @@ def test_metrics_are_noop_when_disabled(monkeypatch):
     # No samples may be produced, though the registered collectors' header
     # lines still render.
     lines = [l for l in generate_latest().decode().splitlines() if not l.startswith("#")]
-    assert not any(l.startswith("d15n_workflow_runs_total") for l in lines)
-    assert not any(l.startswith("d15n_step_runs_total") for l in lines)
-    assert not any(l.startswith("d15n_step_duration_seconds") for l in lines)
+    assert not any(l.startswith("everystep_workflow_runs_total") for l in lines)
+    assert not any(l.startswith("everystep_step_runs_total") for l in lines)
+    assert not any(l.startswith("everystep_step_duration_seconds") for l in lines)

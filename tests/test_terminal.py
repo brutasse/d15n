@@ -1,9 +1,9 @@
 import pytest
 
-from d15n import Terminal, parallel, schedule, step, workflow
-from d15n import serde
-from d15n.models import Step, Workflow
-from d15n.runner import execute
+from everystep import Terminal, parallel, schedule, step, workflow
+from everystep import serde
+from everystep.models import Step, Workflow
+from everystep.runner import execute
 from tests.helpers import claim_next
 
 pytestmark = pytest.mark.django_db(transaction=True)

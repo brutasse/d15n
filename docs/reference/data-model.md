@@ -2,7 +2,7 @@
 
 Two tables, both created by migrations shipped with the app.
 
-## `d15n_workflow`
+## `everystep_workflow`
 
 One row per scheduled run.
 
@@ -22,7 +22,7 @@ One row per scheduled run.
 Constraint: unique `(name, idempotency_key)` where `idempotency_key` is not
 null — what makes `schedule`'s idempotency key safe under concurrency.
 
-## `d15n_step`
+## `everystep_step`
 
 One row per **executed** step of a run (steps served from the store on a
 replay create no row).
@@ -30,8 +30,8 @@ replay create no row).
 | Field | Type | Notes |
 | --- | --- | --- |
 | `id` | bigint auto | |
-| `workflow` | FK → `d15n_workflow`, CASCADE | Related name `steps`. |
-| `step_id` | varchar(300) | The dotpath identity: positional or `d15n_id`-based. |
+| `workflow` | FK → `everystep_workflow`, CASCADE | Related name `steps`. |
+| `step_id` | varchar(300) | The dotpath identity: positional or `everystep_id`-based. |
 | `name` | varchar(300) | The function's qualified name, recorded for divergence detection on replay. |
 | `args` | jsonb | Positional args as called. |
 | `kwargs` | jsonb | Keyword args as called. |
@@ -43,8 +43,8 @@ Constraint: unique `(workflow, step_id)` — a step's outcome is recorded once.
 
 ## JSON storage
 
-`args`, `kwargs`, `result` and `error` are `D15nJSONField` — Django's
-`JSONField` with d15n's extended encodings (`datetime`, `date`, `timedelta`,
+`args`, `kwargs`, `result` and `error` are `EverystepJSONField` — Django's
+`JSONField` with everystep's extended encodings (`datetime`, `date`, `timedelta`,
 `UUID`, `bytes`, `enum` — see [steps](../concepts/steps.md#serialization)).
 On PostgreSQL they are stored as `jsonb`.
 
@@ -56,7 +56,7 @@ Exception payloads are plain JSON objects: `{"type": "module.Class",
 - **Character columns** are bounded as above: workflow name and step id
   300, idempotency key and claimer 255, statuses 16.
 - **Step ids** are additionally bounded by the engine at 300 characters for
-  the full dotpath; a `d15n_id` that would exceed it raises `D15nError`
+  the full dotpath; a `everystep_id` that would exceed it raises `EverystepError`
   before the step runs.
 - **`args`/`kwargs`/`result`/`error` have no application-level limit.** They
   are bounded only by PostgreSQL (a `jsonb` value can reach the ~1 GB
@@ -64,7 +64,7 @@ Exception payloads are plain JSON objects: `{"type": "module.Class",
   these values in full, and they are loaded into memory on every claim.
   Store IDs and references, not payloads. Note that `bytes` are stored
   base64-encoded, i.e. 4/3 of their size.
-- **Rows accumulate forever** — d15n deletes nothing. A run costs one
+- **Rows accumulate forever** — everystep deletes nothing. A run costs one
   `Workflow` row plus one `Step` row per executed step. Prune from the
   application side if growth matters (see
   [data retention](../running/deploying.md#data-retention)).

@@ -1,10 +1,10 @@
 from django.core.management.base import BaseCommand
 
-from d15n.worker import Worker
+from everystep.worker import Worker
 
 
 class Command(BaseCommand):
-    help = "Run a d15n runner: claim and execute due workflows."
+    help = "Run an everystep runner: claim and execute due workflows."
 
     def add_arguments(self, parser):
         parser.add_argument("--pool", type=int, default=4, help="thread pool size")
@@ -33,7 +33,7 @@ class Command(BaseCommand):
             default=0,
             help=(
                 "serve Prometheus metrics on this TCP port (0: disabled). Requires "
-                'the metrics extra: pip install "d15n[metrics]".'
+                'the metrics extra: pip install "everystep[metrics]".'
             ),
         )
         parser.add_argument(

@@ -14,25 +14,25 @@ import time
 from django.db import transaction
 from django.utils import timezone
 
-from d15n import context, metrics, serde, traces
-from d15n.context import Context
-from d15n.errors import (
-    D15nError,
+from everystep import context, metrics, serde, traces
+from everystep.context import Context
+from everystep.errors import (
+    EverystepError,
     DrainOrphan,
     SimulatedCrash,
     Terminal,
     WorkflowCodeError,
 )
-from d15n.models import Step, Workflow
-from d15n.registry import name_of, registry
-from d15n.telemetry import report_workflow_failure
+from everystep.models import Step, Workflow
+from everystep.registry import name_of, registry
+from everystep.telemetry import report_workflow_failure
 
 fault = None
 
 
-def run_step(ctx, func, args, kwargs, d15n_id=None):
+def run_step(ctx, func, args, kwargs, everystep_id=None):
     name = name_of(func)
-    step_id = ctx.next_id(d15n_id)
+    step_id = ctx.next_id(everystep_id)
     stored = ctx.outcomes.get(step_id)
     if stored is not None:
         if stored["name"] != name:
@@ -53,10 +53,10 @@ def run_step(ctx, func, args, kwargs, d15n_id=None):
         serde.dumps(list(args))
         serde.dumps(kwargs)
     except (TypeError, ValueError) as exc:
-        raise D15nError(f"step {name!r} arguments are not serializable: {exc}") from exc
+        raise EverystepError(f"step {name!r} arguments are not serializable: {exc}") from exc
 
     started = time.monotonic()
-    with traces.span(name, {"d15n.step.id": step_id}, active=ctx.persistent) as step_span:
+    with traces.span(name, {"everystep.step.id": step_id}, active=ctx.persistent) as step_span:
         try:
             result = func(*args, **kwargs)
             error = None
@@ -73,7 +73,7 @@ def run_step(ctx, func, args, kwargs, d15n_id=None):
         try:
             serde.dumps(result)
         except (TypeError, ValueError) as exc:
-            raise D15nError(f"step {name!r} result is not serializable: {exc}") from exc
+            raise EverystepError(f"step {name!r} result is not serializable: {exc}") from exc
 
     if ctx.persistent:
         if fault is not None:
@@ -138,15 +138,15 @@ def execute(workflow_id, draining=None):
     )
     context.set_current(ctx)
     try:
-        with traces.span(workflow.name, {"d15n.workflow.id": str(workflow.id)}) as span:
+        with traces.span(workflow.name, {"everystep.workflow.id": str(workflow.id)}) as span:
             try:
                 result = func(*workflow.args)
                 error = None
             except SimulatedCrash:
-                span.set_attribute("d15n.workflow.status", "running")
+                span.set_attribute("everystep.workflow.status", "running")
                 raise
             except DrainOrphan:
-                span.set_attribute("d15n.workflow.status", "running")
+                span.set_attribute("everystep.workflow.status", "running")
                 return
             except Terminal as t:
                 updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
@@ -156,7 +156,7 @@ def execute(workflow_id, draining=None):
                 )
                 if updated:
                     metrics.record_workflow_terminal(workflow.name, "stopped", time.monotonic() - started)
-                    span.set_attribute("d15n.workflow.status", "stopped")
+                    span.set_attribute("everystep.workflow.status", "stopped")
                     traces.mark_ok(span)
                 return
             except Exception as exc:
@@ -173,13 +173,13 @@ def execute(workflow_id, draining=None):
                 )
                 if updated:
                     metrics.record_workflow_terminal(workflow.name, "failed", time.monotonic() - started)
-                    span.set_attribute("d15n.workflow.status", "failed")
+                    span.set_attribute("everystep.workflow.status", "failed")
                     traces.mark_error(span, error)
                 return
             try:
                 serde.dumps(result)
             except (TypeError, ValueError) as exc:
-                raise D15nError(f"workflow result for {workflow.name!r} is not serializable: {exc}") from exc
+                raise EverystepError(f"workflow result for {workflow.name!r} is not serializable: {exc}") from exc
             updated = Workflow.objects.filter(id=workflow.id, status=Workflow.Status.RUNNING).update(
                 status=Workflow.Status.COMPLETED,
                 result=result,
@@ -187,7 +187,7 @@ def execute(workflow_id, draining=None):
             )
             if updated:
                 metrics.record_workflow_terminal(workflow.name, "completed", time.monotonic() - started)
-                span.set_attribute("d15n.workflow.status", "completed")
+                span.set_attribute("everystep.workflow.status", "completed")
                 traces.mark_ok(span)
     finally:
         context.clear_current()
